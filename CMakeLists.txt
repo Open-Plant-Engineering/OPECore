@@ -15,9 +15,16 @@ include_directories(
 add_library(sqlite3 STATIC external/sqlite-amalgamation-3500400/sqlite3.c)
 
 # Add your application executable
-add_library(OpeCore
+# add_library(OpeCore
+#     src/main.cpp
+#     src/app.cpp
+# )
+
+# Add executable
+add_executable(OpeCore
     src/main.cpp
-    src/app.cpp
+    src/OpeDbCore.cpp
+    src/OpeSessionManager.cpp
 )
 
 # Link SQLite to your app

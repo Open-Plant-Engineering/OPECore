@@ -1,20 +1,22 @@
-#include "app.h"
+#include "OpeDbCore.h"
 #include <iostream>
 
-OpeCore::OpeCore() : db(nullptr) {
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+OpeDbCore::OpeDbCore() { }
+
+void OpeDbCore::OpenDbConnection() {
+    if (sqlite3_open(dbFilePath.c_str(), &db) != SQLITE_OK) {
         lastError = sqlite3_errmsg(db);
         db = nullptr;
     }
 }
 
-OpeCore::~OpeCore() {
+OpeDbCore::~OpeDbCore() {
     if (db) {
         sqlite3_close(db);
     }
 }
 
-bool OpeCore::execute(const std::string& sql) {
+bool OpeDbCore::execute(const std::string& sql) {
     char* errMsg = nullptr;
     int rc = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, &errMsg);
     if (rc != SQLITE_OK) {
@@ -25,6 +27,6 @@ bool OpeCore::execute(const std::string& sql) {
     return true;
 }
 
-std::string OpeCore::getLastError() const {
+std::string OpeDbCore::getLastError() const {
     return lastError;
 }
