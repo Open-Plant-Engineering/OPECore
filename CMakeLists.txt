@@ -5,6 +5,12 @@ project(OpeCore)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Find libgit2 (installed once, reused forever)
+find_package(libgit2 REQUIRED)
+
+include_directories(${LIBGIT2_INCLUDE_DIRS})
+link_directories(${LIBGIT2_LIBRARY_DIRS})
+
 # Include directories
 include_directories(
     include
@@ -24,12 +30,15 @@ add_executable(OpeCore
     src/OpeDbCore.cpp
     src/OpeSessionManager.cpp
     src/JSON/JsonCRUD.cpp
+    src/Git/GitWrapper.cpp
 )
 
 # Link SQLite to your app
 target_link_libraries(OpeCore PRIVATE sqlite3)
 target_include_directories(OpeCore PRIVATE external/sqlite-amalgamation-3500400)
 target_include_directories(OpeCore PUBLIC include)
+
+target_link_libraries(OpeCore PRIVATE git2)
 
 # -----------------------------
 # Installation rules

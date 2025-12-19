@@ -2,10 +2,15 @@
 #include "OpeDbCore.h"
 #include <sqlite3.h>
 #include "JsonCRUD.hpp"
+#include "GitWrapper.hpp"
 
 int JsonCRUDMain();
+void testGitWrapper(const std::string& repoPath);
 
 int main() {
+    std::string repoPath = "/workspaces/OPECore/libgit2";
+    testGitWrapper(repoPath);
+
     JsonCRUDMain();
     
     OpeDbCore app;
@@ -51,4 +56,73 @@ int JsonCRUDMain() {
     crud.printAll();
 
     return 0;
+}
+
+void testGitWrapper(const std::string& repoPath) {
+    GitWrapper git(repoPath);
+
+    std::cout << "=== Testing GitWrapper on repo: " << repoPath << " ===\n";
+
+    // 1. Create a new branch
+    if (git.gitCreateBranch("test-branch")) {
+        std::cout << "Branch 'test-branch' created successfully.\n";
+    } else {
+        std::cout << "Failed to create branch.\n";
+    }
+
+    // 2. Rename the branch
+    if (git.gitRenameBranch("test-branch", "renamed-branch")) {
+        std::cout << "Branch renamed to 'renamed-branch'.\n";
+    } else {
+        std::cout << "Failed to rename branch.\n";
+    }
+
+    // 3. Pull (fetch only in our simplified wrapper)
+    if (git.gitPull("origin", "main")) {
+        std::cout << "Pull (fetch) completed.\n";
+    } else {
+        std::cout << "Pull failed.\n";
+    }
+
+    // 4. List modified files
+    auto modified = git.getModifiedFiles();
+    if (!modified.empty()) {
+        std::cout << "Modified files:\n";
+        for (const auto& f : modified) {
+            std::cout << " - " << f << "\n";
+        }
+    } else {
+        std::cout << "No modified files detected.\n";
+    }
+
+    // 5. Reset (soft example)
+    if (git.gitReset("HEAD~1", "soft")) {
+        std::cout << "Soft reset to HEAD~1 completed.\n";
+    } else {
+        std::cout << "Reset failed.\n";
+    }
+
+    // Hard reset to HEAD~1
+    if (git.gitReset("HEAD~1", "hard")) {
+        std::cout << "Hard reset to HEAD~1 completed.\n";
+    } else {
+        std::cout << "Hard reset failed.\n";
+    }
+
+    // 6. Stash
+    if (git.gitStash("Test stash")) {
+        std::cout << "Changes stashed successfully.\n";
+    } else {
+        std::cout << "Stash failed.\n";
+    }
+
+    // Create branch first
+    git.gitCreateBranch("temp-branch");
+
+    // Delete branch
+    if (git.gitDeleteBranch("temp-branch")) {
+        std::cout << "Branch deletion test passed.\n";
+    } else {
+        std::cout << "Branch deletion test failed.\n";
+    }
 }
