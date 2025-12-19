@@ -9,6 +9,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 include_directories(
     include
     external/sqlite-amalgamation-3500400
+    external
 )
 
 # Add SQLite amalgamation

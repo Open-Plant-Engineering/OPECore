@@ -1,8 +1,25 @@
 #include <iostream>
 #include "OpeDbCore.h"
 #include <sqlite3.h>
+#include <nlohmann/json.hpp>
+
+using json = nlohmann::json;
 
 int main() {
+    json obj;
+    obj["name"] = "AVEVA-like app";
+    obj["version"] = 1.0;
+
+    // Print JSON
+    std::cout << obj.dump(4) << std::endl;
+
+    // Parse JSON string
+    std::string input = R"({"status":"active","users":150})";
+    json parsed = json::parse(input);
+
+    std::cout << "Status: " << parsed["status"] << std::endl;
+    std::cout << "Users: " << parsed["users"] << std::endl;
+    
     OpeDbCore app;
 
     app.dbFilePath = "C:\\db\\db.db";
