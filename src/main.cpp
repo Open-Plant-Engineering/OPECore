@@ -1,24 +1,12 @@
 #include <iostream>
 #include "OpeDbCore.h"
 #include <sqlite3.h>
-#include <nlohmann/json.hpp>
+#include "JsonCRUD.hpp"
 
-using json = nlohmann::json;
+int JsonCRUDMain();
 
 int main() {
-    json obj;
-    obj["name"] = "AVEVA-like app";
-    obj["version"] = 1.0;
-
-    // Print JSON
-    std::cout << obj.dump(4) << std::endl;
-
-    // Parse JSON string
-    std::string input = R"({"status":"active","users":150})";
-    json parsed = json::parse(input);
-
-    std::cout << "Status: " << parsed["status"] << std::endl;
-    std::cout << "Users: " << parsed["users"] << std::endl;
+    JsonCRUDMain();
     
     OpeDbCore app;
 
@@ -39,5 +27,28 @@ int main() {
     }
     
     std::cout << "Demo app ran successfully!" << std::endl;
+    return 0;
+}
+
+// Example usage
+int JsonCRUDMain() {
+    JsonCRUD crud("data.json");
+
+    // Create
+    crud.create("user1", {{"name", "Alice"}, {"age", 25}});
+    crud.create("user2", {{"name", "Bob"}, {"age", 30}});
+
+    // Read
+    std::cout << "User1: " << crud.read("user1") << std::endl;
+
+    // Update
+    crud.update("user1", {{"name", "Alice"}, {"age", 26}});
+
+    // Delete
+    crud.remove("user2");
+
+    // Print all
+    crud.printAll();
+
     return 0;
 }

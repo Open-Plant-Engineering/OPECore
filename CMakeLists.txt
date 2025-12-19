@@ -23,6 +23,7 @@ add_executable(OpeCore
     src/main.cpp
     src/OpeDbCore.cpp
     src/OpeSessionManager.cpp
+    src/JSON/JsonCRUD.cpp
 )
 
 # Link SQLite to your app
