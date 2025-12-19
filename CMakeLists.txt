@@ -31,6 +31,8 @@ add_executable(OpeCore
     src/OpeSessionManager.cpp
     src/JSON/JsonCRUD.cpp
     src/Git/GitWrapper.cpp
+    src/Database/MySQLDatabase.cpp
+    src/Database/SQLiteDatabase.cpp
 )
 
 # Link SQLite to your app

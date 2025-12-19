@@ -6,8 +6,10 @@
 
 int JsonCRUDMain();
 void testGitWrapper(const std::string& repoPath);
+int TestDB();
 
 int main() {
+    TestDB();
     std::string repoPath = "/workspaces/OPECore/libgit2";
     testGitWrapper(repoPath);
 
@@ -125,4 +127,32 @@ void testGitWrapper(const std::string& repoPath) {
     } else {
         std::cout << "Branch deletion test failed.\n";
     }
+}
+
+#include "Database.hpp"
+
+int TestDB() {
+    // Choose backend
+    IDatabase* db;
+
+    // For MySQL
+    // db = new MySQLDatabase();
+    // db->connect("localhost;root;password;testdb");
+
+    // For SQLite
+    // db = new SQLiteDatabase();
+    // db->connect("test.db");
+// 
+    // db->createTable("users");
+    // db->insert("users", "Alice", 25);
+    // db->insert("users", "Bob", 30);
+// 
+    // auto rows = db->read("users");
+    // for (auto& r : rows) std::cout << r << "\n";
+// 
+    // db->update("users", 1, "Alice Updated", 26);
+    // db->remove("users", 2);
+
+    delete db;
+    return 0;
 }
