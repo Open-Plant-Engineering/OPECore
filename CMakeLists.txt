@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Find libgit2 (installed once, reused forever)
 find_package(libgit2 REQUIRED)
+# find_package(SOCI REQUIRED COMPONENTS sqlite3 mysql)
 
 include_directories(${LIBGIT2_INCLUDE_DIRS})
 link_directories(${LIBGIT2_LIBRARY_DIRS})
@@ -41,6 +42,8 @@ target_include_directories(OpeCore PRIVATE external/sqlite-amalgamation-3500400)
 target_include_directories(OpeCore PUBLIC include)
 
 target_link_libraries(OpeCore PRIVATE git2)
+# target_link_libraries(OpeCore PRIVATE SOCI::sqlite3 SOCI::mysql)
+
 
 # -----------------------------
 # Installation rules

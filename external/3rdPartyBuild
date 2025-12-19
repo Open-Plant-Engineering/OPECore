@@ -4,3 +4,13 @@ mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 cmake --build .
 sudo cmake --install .
+
+
+sudo apt-get update
+sudo apt-get install libgit2-dev
+
+sudo apt-get update
+sudo apt-get install libmysqlclient-dev
+sudo apt-get install libsqlite3-dev
+
+sudo apt-get install libsoci-dev
