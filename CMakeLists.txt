@@ -30,6 +30,18 @@ target_link_libraries(OpeCore PRIVATE sqlite3)
 target_include_directories(OpeCore PRIVATE external/sqlite-amalgamation-3500400)
 target_include_directories(OpeCore PUBLIC include)
 
+# -----------------------------
+# Installation rules
+# -----------------------------
+
+# Install the executable
+install(TARGETS OpeCore
+    RUNTIME DESTINATION bin
+)
+
+# Install your public headers (from include/)
+install(DIRECTORY include/ DESTINATION include)
+
 # Folders for testing
 # enable_testing()
 # add_subdirectory(test)
