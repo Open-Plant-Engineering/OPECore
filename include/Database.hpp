@@ -1,25 +1,30 @@
-#ifndef DATABASE_HPP
-#define DATABASE_HPP
+#pragma once
 
+#include <soci/soci.h>
+#include <memory>
 #include <string>
-#include <vector>
 
-// Generic interface
-class IDatabase {
-public:
-    virtual ~IDatabase() = default;
-
-    virtual bool connect(const std::string& connStr) = 0;
-    virtual bool createTable(const std::string& tableName) = 0;
-    virtual bool insert(const std::string& tableName,
-                        const std::string& name,
-                        int age) = 0;
-    virtual std::vector<std::string> read(const std::string& tableName) = 0;
-    virtual bool update(const std::string& tableName,
-                        int id,
-                        const std::string& name,
-                        int age) = 0;
-    virtual bool remove(const std::string& tableName, int id) = 0;
+enum class DbBackend
+{
+    SQLite,
+    MySQL
 };
 
-#endif // DATABASE_HPP
+class Database
+{
+public:
+    Database(DbBackend backend,
+             const std::string& connectionString);
+
+    void initSchema();
+
+    // CRUD operations
+    void createUser(const std::string& name, int age);
+    bool readUserByName(const std::string& name, int& idOut, int& ageOut);
+    void updateUserAge(const std::string& name, int newAge);
+    void deleteUser(const std::string& name);
+
+private:
+    DbBackend backend_;
+    std::unique_ptr<soci::session> session_;
+};

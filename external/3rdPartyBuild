@@ -1,3 +1,5 @@
+mkdir Install
+cd Install
 git clone https://github.com/libgit2/libgit2.git
 cd libgit2
 mkdir build && cd build
@@ -5,6 +7,13 @@ cmake .. -DCMAKE_BUILD_TYPE=Release
 cmake --build .
 sudo cmake --install .
 
+cd ..
+cd ..
+git clone --recurse-submodules https://github.com/SOCI/soci.git
+cd soci
+cmake -S . -B build -DSOCI_SQLITE3=ON -DSOCI_MYSQL=ON -DSOCI_TESTS=OFF -DSOCI_EXAMPLES=OFF
+cmake --build build --config Release
+sudo cmake --install build
 
 sudo apt-get update
 sudo apt-get install libgit2-dev

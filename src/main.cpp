@@ -3,6 +3,7 @@
 #include <sqlite3.h>
 #include "JsonCRUD.hpp"
 #include "GitWrapper.hpp"
+#include "Database.hpp"
 
 int JsonCRUDMain();
 void testGitWrapper(const std::string& repoPath);
@@ -132,27 +133,61 @@ void testGitWrapper(const std::string& repoPath) {
 #include "Database.hpp"
 
 int TestDB() {
-    // Choose backend
-    IDatabase* db;
+    try
+    {
+        // ----- Choose backend -----
+        // 1) SQLite example
+        DbBackend backend = DbBackend::SQLite;
+        std::string connStr = "soci_demo.db"; // SQLite file
 
-    // For MySQL
-    // db = new MySQLDatabase();
-    // db->connect("localhost;root;password;testdb");
+        // 2) MySQL example (uncomment to use)
+        // DbBackend backend = DbBackend::MySQL;
+        // std::string connStr =
+        //     "db=testdb user=root password=1234 host=127.0.0.1";
 
-    // For SQLite
-    // db = new SQLiteDatabase();
-    // db->connect("test.db");
-// 
-    // db->createTable("users");
-    // db->insert("users", "Alice", 25);
-    // db->insert("users", "Bob", 30);
-// 
-    // auto rows = db->read("users");
-    // for (auto& r : rows) std::cout << r << "\n";
-// 
-    // db->update("users", 1, "Alice Updated", 26);
-    // db->remove("users", 2);
+        Database db(backend, connStr);
+        db.initSchema();
 
-    delete db;
+        std::string name = "Alice";
+        int age = 30;
+
+        std::cout << "== CREATE ==" << std::endl;
+        db.createUser(name, age);
+
+        std::cout << "== READ ==" << std::endl;
+        int idOut = 0, ageOut = 0;
+        if (db.readUserByName(name, idOut, ageOut))
+        {
+            std::cout << "User found: id=" << idOut
+                      << ", name=" << name
+                      << ", age=" << ageOut << std::endl;
+        }
+        else
+        {
+            std::cout << "User not found" << std::endl;
+        }
+
+        std::cout << "== UPDATE ==" << std::endl;
+        db.updateUserAge(name, 31);
+        if (db.readUserByName(name, idOut, ageOut))
+        {
+            std::cout << "After update: id=" << idOut
+                      << ", name=" << name
+                      << ", age=" << ageOut << std::endl;
+        }
+
+        std::cout << "== DELETE ==" << std::endl;
+        db.deleteUser(name);
+        if (!db.readUserByName(name, idOut, ageOut))
+        {
+            std::cout << "User deleted successfully." << std::endl;
+        }
+    }
+    catch (const std::exception& ex)
+    {
+        std::cerr << "Error: " << ex.what() << '\n';
+        return 1;
+    }
+
     return 0;
 }
