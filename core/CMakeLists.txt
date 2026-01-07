@@ -1,0 +1,24 @@
+cmake_minimum_required(VERSION 3.15)
+project(OPE_core_engine)
+
+find_package(Python COMPONENTS Interpreter Development)
+find_package(pybind11 CONFIG REQUIRED)
+find_package(nlohmann_json CONFIG REQUIRED)
+find_package(libgit2 CONFIG REQUIRED)
+
+add_library(OPE_core_engine STATIC
+    src/engine.cpp
+)
+
+pybind11_add_module(OPE_core_engine_py bindings/py_engine.cpp)
+
+target_include_directories(OPE_core_engine PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(OPE_core_engine_py PRIVATE
+    OPE_core_engine
+    pybind11::pybind11
+    nlohmann_json::nlohmann_json
+    libgit2::libgit2package
+)

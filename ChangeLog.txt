@@ -1,7 +1,0 @@
-Version 0.0.0
-
-1. Create Sqlite db.
-2. CRUD Table
-3. CRUD Table Data
-4. CRUD Hierarchy data
-5. CRUD Hierarchy Node's Attribute Data

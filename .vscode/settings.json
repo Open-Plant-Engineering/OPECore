@@ -4,5 +4,11 @@
         "iostream": "cpp",
         "optional": "cpp",
         "variant": "cpp"
-    }
+    },
+
+    "cmake.useCMakePresets": "always",
+    "cmake.configureOnOpen": true,
+    "cmake.preferredGenerators": [
+        "Ninja"
+    ]
 }
