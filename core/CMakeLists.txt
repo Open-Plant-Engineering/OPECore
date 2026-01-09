@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.15)
 project(OPE_core_engine)
 
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
 find_package(Python COMPONENTS Interpreter Development)
 find_package(pybind11 CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
@@ -41,5 +43,17 @@ target_link_libraries(OPE_core_engine PRIVATE
 )
 
 target_link_libraries(OPE_core_engine_py PRIVATE
+    OPE_core_engine
+)
+
+target_link_libraries(py_GitWrapper PRIVATE
+    OPE_core_engine
+)
+
+target_link_libraries(py_JsonCRUD PRIVATE
+    OPE_core_engine
+)
+
+target_link_libraries(py_SessionManager PRIVATE
     OPE_core_engine
 )
