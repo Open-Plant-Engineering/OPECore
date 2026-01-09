@@ -170,3 +170,167 @@ bool GitWrapper::cloneRepository(const std::string& remoteUrl,
     git_libgit2_shutdown();
     return true;
 }
+
+bool GitWrapper::addFile(const std::string& filePath) {
+    git_index* index = nullptr;
+
+    if (git_repository_index(&index, repo) != 0)
+        return false;
+
+    int rc = git_index_add_bypath(index, filePath.c_str());
+    git_index_write(index);
+    git_index_free(index);
+
+    return rc == 0;
+}
+
+bool GitWrapper::removeFile(const std::string& filePath) {
+    git_index* index = nullptr;
+
+    if (git_repository_index(&index, repo) != 0)
+        return false;
+
+    int rc = git_index_remove_bypath(index, filePath.c_str());
+    git_index_write(index);
+    git_index_free(index);
+
+    return rc == 0;
+}
+
+bool GitWrapper::stageAll() {
+    git_index* index = nullptr;
+
+    if (git_repository_index(&index, repo) != 0)
+        return false;
+
+    int rc = git_index_add_all(index, nullptr, 0, nullptr, nullptr);
+    git_index_write(index);
+    git_index_free(index);
+
+    return rc == 0;
+}
+
+bool GitWrapper::commitFile(const std::string& filePath,
+                            const std::string& message,
+                            std::string& errorMessage)
+{
+    if (!addFile(filePath)) {
+        errorMessage = "Failed to stage file: " + filePath;
+        return false;
+    }
+
+    return commitAll(message, errorMessage);
+}
+
+bool GitWrapper::commitAll(const std::string& message,
+                           std::string& errorMessage)
+{
+    git_index* index = nullptr;
+    if (git_repository_index(&index, repo) != 0) {
+        errorMessage = "Failed to open index";
+        return false;
+    }
+
+    git_oid treeOid;
+    git_index_write_tree(&treeOid, index);
+    git_index_write(index);
+    git_index_free(index);
+
+    git_tree* tree = nullptr;
+    git_tree_lookup(&tree, repo, &treeOid);
+
+    git_signature* sig = nullptr;
+    git_signature_now(&sig, "AutoCommit", "auto@example.com");
+
+    git_reference* head = nullptr;
+    git_repository_head(&head, repo);
+
+    git_commit* parent = nullptr;
+    git_commit_lookup(&parent, repo, git_reference_target(head));
+
+    git_oid commitOid;
+    int rc = git_commit_create_v(
+        &commitOid,
+        repo,
+        "HEAD",
+        sig,
+        sig,
+        nullptr,
+        message.c_str(),
+        tree,
+        parent ? 1 : 0,
+        parent
+    );
+
+    git_tree_free(tree);
+    git_signature_free(sig);
+    git_reference_free(head);
+    if (parent) git_commit_free(parent);
+
+    if (rc != 0) {
+        const git_error* e = git_error_last();
+        errorMessage = e ? e->message : "Unknown commit error";
+        return false;
+    }
+
+    return true;
+}
+
+std::vector<std::string> GitWrapper::listBranches() {
+    std::vector<std::string> branches;
+
+    git_branch_iterator* it = nullptr;
+    git_branch_iterator_new(&it, repo, GIT_BRANCH_LOCAL);
+
+    git_reference* ref = nullptr;
+    git_branch_t type;
+
+    while (git_branch_next(&ref, &type, it) == 0) {
+        const char* name = nullptr;
+        git_branch_name(&name, ref);
+        branches.push_back(name);
+        git_reference_free(ref);
+    }
+
+    git_branch_iterator_free(it);
+    return branches;
+}
+
+std::vector<std::string> GitWrapper::listTags() {
+    std::vector<std::string> tags;
+
+    git_strarray arr;
+    git_tag_list(&arr, repo);
+
+    for (size_t i = 0; i < arr.count; ++i)
+        tags.push_back(arr.strings[i]);
+
+    git_strarray_dispose(&arr);
+    return tags;
+}
+
+std::vector<std::string> GitWrapper::logHistory(int maxCount) {
+    std::vector<std::string> logs;
+
+    git_revwalk* walker = nullptr;
+    git_revwalk_new(&walker, repo);
+    git_revwalk_push_head(walker);
+    git_revwalk_sorting(walker, GIT_SORT_TIME);
+
+    git_oid oid;
+    int count = 0;
+
+    while (git_revwalk_next(&oid, walker) == 0 && count < maxCount) {
+        git_commit* commit = nullptr;
+        git_commit_lookup(&commit, repo, &oid);
+
+        std::string msg = git_commit_message(commit);
+        logs.push_back(msg);
+
+        git_commit_free(commit);
+        count++;
+    }
+
+    git_revwalk_free(walker);
+    return logs;
+}

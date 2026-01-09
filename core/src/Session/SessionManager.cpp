@@ -247,3 +247,101 @@ std::string SessionManager::getHostname() {
     return "unknown_host";
 #endif
 }
+
+
+// ------------------------------------------------------------
+// NEW: Commit finalized JSON file
+// ------------------------------------------------------------
+bool SessionManager::commitFile(const std::string& relativeJsonPath,
+                                const std::string& message,
+                                std::string& errorMessage)
+{
+    GitWrapper git(repoPath);
+    return git.commitFile(relativeJsonPath, message, errorMessage);
+}
+
+// ------------------------------------------------------------
+// NEW: List active users
+// ------------------------------------------------------------
+std::set<std::string> SessionManager::listActiveUsers() const {
+    std::set<std::string> users;
+
+    for (auto& p : fs::recursive_directory_iterator(repoPath)) {
+        if (!p.is_regular_file()) continue;
+
+        std::string name = p.path().filename().string();
+
+        // working copy: <hostname>_<file>
+        auto pos = name.find('_');
+        if (pos != std::string::npos && !name.starts_with(".base_")) {
+            users.insert(name.substr(0, pos));
+        }
+
+        // base copy: .base_<hostname>_<file>
+        if (name.starts_with(".base_")) {
+            std::string rest = name.substr(6);
+            auto pos2 = rest.find('_');
+            if (pos2 != std::string::npos)
+                users.insert(rest.substr(0, pos2));
+        }
+
+        // lock file: <file>.lock
+        if (name.ends_with(".lock")) {
+            std::ifstream in(p.path());
+            std::string lockedBy;
+            if (in.is_open() && std::getline(in, lockedBy))
+                users.insert(lockedBy);
+        }
+    }
+
+    return users;
+}
+
+// ------------------------------------------------------------
+// NEW: Cleanup one user
+// ------------------------------------------------------------
+bool SessionManager::cleanupUser(const std::string& user) {
+    for (auto& p : fs::recursive_directory_iterator(repoPath)) {
+        if (!p.is_regular_file()) continue;
+
+        std::string name = p.path().filename().string();
+
+        if (name.starts_with(user + "_") ||
+            name.starts_with(".base_" + user + "_"))
+        {
+            fs::remove(p.path());
+            continue;
+        }
+
+        if (name.ends_with(".lock")) {
+            std::ifstream in(p.path());
+            std::string lockedBy;
+            if (in.is_open() && std::getline(in, lockedBy)) {
+                if (lockedBy == user)
+                    fs::remove(p.path());
+            }
+        }
+    }
+
+    return true;
+}
+
+// ------------------------------------------------------------
+// NEW: Cleanup all users
+// ------------------------------------------------------------
+bool SessionManager::cleanupAllUsers() {
+    for (auto& p : fs::recursive_directory_iterator(repoPath)) {
+        if (!p.is_regular_file()) continue;
+
+        std::string name = p.path().filename().string();
+
+        if (name.find('_') != std::string::npos ||
+            name.starts_with(".base_") ||
+            name.ends_with(".lock"))
+        {
+            fs::remove(p.path());
+        }
+    }
+
+    return true;
+}

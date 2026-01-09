@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <set>
 
 class SessionManager {
 public:
@@ -32,7 +33,16 @@ public:
     bool finalizeSession(const std::string& relativeJsonPath,
                          std::vector<std::string>& rejectedKeys,
                          std::string& errorMessage);
+    // NEW: Git integration
+    bool commitFile(const std::string& relativeJsonPath,
+                    const std::string& message,
+                    std::string& errorMessage);
 
+    // NEW: Cleanup APIs
+    std::set<std::string> listActiveUsers() const;
+    bool cleanupUser(const std::string& user);
+    bool cleanupAllUsers();
+    
     const std::string& getRepoPath() const { return repoPath; }
 
 private:

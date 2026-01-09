@@ -20,6 +20,25 @@ public:
     bool gitStash(const std::string& message = "WIP");
     bool gitReset(const std::string& commit = "HEAD~1", const std::string& mode = "hard");
     bool gitDeleteBranch(const std::string& branch);
+    
+    // File operations
+    bool addFile(const std::string& filePath);
+    bool removeFile(const std::string& filePath);
+    bool stageAll();
+
+    // Commit operations
+    bool commitFile(const std::string& filePath,
+                    const std::string& message,
+                    std::string& errorMessage);
+
+    bool commitAll(const std::string& message,
+                   std::string& errorMessage);
+
+    // Listing
+    std::vector<std::string> listBranches();
+    std::vector<std::string> listTags();
+    std::vector<std::string> logHistory(int maxCount = 20);
+
 
     static bool cloneRepository(const std::string& remoteUrl,
                                 const std::string& localPath,
