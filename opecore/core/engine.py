@@ -1,11 +1,12 @@
 from opecore.storage.engine import StorageEngine
 from opecore.lock.persistent import PersistentLockManager
-
+from opecore.index.index import IndexEngine
 
 class Engine:
     def __init__(self, db_path="data.db"):
         self.storage = StorageEngine(db_path)
         self.lock_manager = PersistentLockManager("locks")
+        self.index = IndexEngine()
 
     # ✅ READ
     def read_latest(self, object_id):
@@ -35,6 +36,9 @@ class Engine:
             # STEP 4: WRITE NEW VERSION
             binary = self._serialize(obj)
             self.storage.append(object_id, binary)
+            
+            # ✅ update index
+            self.index.add(object_id, obj)
 
         finally:
             # STEP 5: RELEASE LOCK
