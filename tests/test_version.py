@@ -15,13 +15,13 @@ def test_version_chain(tmp_path):
     t_after_alice = time.time()
     print("t_after_alice =", t_after_alice)
 
-    time.sleep(0.001)
+    time.sleep(0.01)
     
     db.append(1, b"Bob")
     t_after_bob = time.time()
     print("t_after_bob =", t_after_bob)
 
-    time.sleep(0.001)
+    time.sleep(0.01)
     
     db.append(1, b"Carol")
 
