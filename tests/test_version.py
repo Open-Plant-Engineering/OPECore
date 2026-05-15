@@ -8,8 +8,6 @@ from opecore.storage.engine import StorageEngine
 
 
 def test_version_chain(tmp_path):
-    import time
-
     db_path = tmp_path / "test.db"
     db = StorageEngine(str(db_path))
 
