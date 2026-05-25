@@ -20,6 +20,7 @@ class Engine:
         self.storage = StorageEngine(db_path)
         self.lock_manager = PersistentLockManager("locks")
         self.index = IndexEngine()
+        self._rebuild_index()
 
     # ✅ ===============================
     # READ OPERATIONS
@@ -93,3 +94,17 @@ class Engine:
 
     def _deserialize(self, data: bytes) -> dict:
         return json.loads(data.decode())
+
+    def _rebuild_index(self):
+        """
+        Build index from storage on startup.
+        """
+    
+        all_data = self.storage.read_all_latest()
+    
+        for object_id, data in all_data.items():
+            obj = self._deserialize(data)
+    
+            # no old state → everything is new
+            self.index.update(object_id, {}, obj)
+    

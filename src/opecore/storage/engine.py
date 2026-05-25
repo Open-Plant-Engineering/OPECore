@@ -211,3 +211,15 @@ class StorageEngine:
             pass
 
         return records
+    
+    def read_all_latest(self) -> Dict[int, bytes]:
+        """
+        Return latest data for all objects.
+        """
+        result = {}
+
+        for object_id, offset in self.head_index.items():
+            record = self._read_record(offset)
+            result[object_id] = record["data"]
+
+        return result
