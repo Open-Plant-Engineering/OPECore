@@ -238,6 +238,8 @@ class Engine:
 
         old_obj = obj.copy()
 
+        self._validate_tree_update(object_id, updates)
+
         for key, value in updates.items():
             if value is DELETE:
                 obj.pop(key, None)
@@ -316,3 +318,28 @@ class Engine:
         filtered = self.query_complex(query)
 
         return subtree_ids.intersection(filtered)
+    
+    def _validate_tree_update(self, object_id, updates):
+        if "owner" not in updates:
+            return
+
+        new_parent = updates["owner"]
+
+        # ✅ allow root
+        if new_parent is None:
+            return
+
+        # ✅ parent must exist
+        parent_data = self.storage.read_latest(new_parent)
+        if parent_data is None:
+            raise Exception(f"Parent {new_parent} does not exist")
+
+        # ✅ no self loop
+        if new_parent == object_id:
+            raise Exception("Object cannot be its own parent")
+
+        # ✅ cycle detection
+        ancestors = self.get_ancestors(new_parent)
+
+        if object_id in ancestors:
+            raise Exception("Cycle detected in tree")

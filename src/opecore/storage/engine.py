@@ -301,7 +301,6 @@ class StorageEngine:
             else:
                 obj = json.loads(current_data.decode())
 
-            old_obj = obj.copy()
 
             for key, value in updates.items():
                 if value is DELETE:
