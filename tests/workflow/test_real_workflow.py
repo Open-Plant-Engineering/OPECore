@@ -1,8 +1,9 @@
 import pytest
+from opecore.core.engine import Engine
+from opecore.core.constants import DELETE
 
 
 def test_multi_node_claim_flow(tmp_path):
-    from opecore.core.engine import Engine
 
     engine = Engine(str(tmp_path / "test.db"))
 
@@ -32,7 +33,6 @@ def test_multi_node_claim_flow(tmp_path):
         engine.update_object(3, {"status": "broken"}, "A")
     
 def test_multi_object_transaction(tmp_path):
-    from opecore.core.engine import Engine
 
     engine = Engine(str(tmp_path / "test.db"))
 
@@ -54,10 +54,7 @@ def test_multi_object_transaction(tmp_path):
     assert b"200" in data2
 
 
-import pytest
-
 def test_transaction_unauthorized(tmp_path):
-    from opecore.core.engine import Engine
 
     engine = Engine(str(tmp_path / "test.db"))
 
@@ -71,15 +68,12 @@ def test_transaction_unauthorized(tmp_path):
         txn.commit()
 
 def test_force_override_in_workflow(tmp_path):
-    from opecore.core.engine import Engine
-    from opecore.core.constants import DELETE
 
     engine = Engine(str(tmp_path / "test.db"))
 
     engine.update_object(1, {"claim_by": "A"}, "A")
 
     # ❌ B blocked normally
-    import pytest
     with pytest.raises(Exception):
         engine.update_object(1, {"value": 1}, "B")
 
@@ -96,8 +90,6 @@ def test_force_override_in_workflow(tmp_path):
     assert b"claim_by" not in data
 
 def test_mixed_user_timeline(tmp_path):
-    from opecore.core.engine import Engine
-    from opecore.core.constants import DELETE
 
     engine = Engine(str(tmp_path / "test.db"))
 
@@ -119,4 +111,100 @@ def test_mixed_user_timeline(tmp_path):
     data = engine.read_latest(1)
 
     assert b"20" in data
+
+def test_two_transactions_conflict(tmp_path):
+
+    engine = Engine(str(tmp_path / "test.db"))
+
+    # A claims object
+    engine.update_object(1, {"claim_by": "A"}, "A")
+
+    txn1 = engine.begin_transaction("A")
+    txn2 = engine.begin_transaction("B")
+
+    txn1.update(1, {"value": 100})
+    txn2.update(1, {"value": 200})
+
+    # ✅ txn1 should succeed
+    txn1.commit()
+
+    # ❌ txn2 should fail (not owner)
+    with pytest.raises(Exception):
+        txn2.commit()
+
+def test_two_transactions_same_user(tmp_path):
+
+    engine = Engine(str(tmp_path / "test.db"))
+
+    engine.update_object(1, {"claim_by": "A"}, "A")
+
+    txn1 = engine.begin_transaction("A")
+    txn2 = engine.begin_transaction("A")
+
+    txn1.update(1, {"value": 100})
+    txn2.update(1, {"value": 200})
+
+    # ✅ both allowed (same owner)
+    txn1.commit()
+    txn2.commit()
+
+    data = engine.read_latest(1)
+
+    assert b"200" in data  # last write wins ✅
+
+def test_transaction_locking(tmp_path):
+
+    engine = Engine(str(tmp_path / "test.db"))
+
+    engine.update_object(1, {"claim_by": "A"}, "A")
+
+    txn1 = engine.begin_transaction("A")
+    txn2 = engine.begin_transaction("A")
+
+    txn1.update(1, {"value": 100})
+
+    # txn1 acquires lock during commit
+    txn1.commit()
+
+    txn2.update(1, {"value": 200})
+
+    # ✅ txn2 can still commit after txn1 releases
+    txn2.commit()
+
+def test_multi_object_partial_conflict(tmp_path):
+    engine = Engine(str(tmp_path / "test.db"))
+
+    # setup
+    engine.update_object(1, {"claim_by": "A"}, "A")
+    engine.update_object(2, {"claim_by": "B"}, "B")
+
+    txn = engine.begin_transaction("A")
+
+    txn.update(1, {"v": 1})  # ✅ allowed
+    txn.update(2, {"v": 2})  # ❌ not allowed
+
+    with pytest.raises(Exception):
+        txn.commit()  # entire txn should fail ✅
+    
+def test_force_override_conflict(tmp_path):
+
+    engine = Engine(str(tmp_path / "test.db"))
+
+    engine.update_object(1, {"claim_by": "A"}, "A")
+
+    txn = engine.begin_transaction("B")
+
+    txn.update(1, {"value": 100})
+
+    # ❌ normally fails
+    
+    with pytest.raises(Exception):
+        txn.commit()
+
+    # ✅ admin bypass
+    engine.update_object(1, {"value": 999}, "admin", force=True)
+
+    data = engine.read_latest(1)
+
+    assert b"999" in data
 

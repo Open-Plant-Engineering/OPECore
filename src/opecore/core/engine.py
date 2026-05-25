@@ -85,9 +85,13 @@ class Engine:
     def update_object(self, object_id: int, updates: dict, actor: str, force: bool = False):
         lock_key = "__all__"
 
-        if not self.lock_manager.acquire(object_id, lock_key, actor):
-            raise Exception(f"Object {object_id} is locked")
-
+        if not force:
+            if not self.lock_manager.acquire(object_id, lock_key, actor):
+                raise Exception(f"Object {object_id} is locked")
+        else:
+            # ✅ force override → skip lock check
+            pass
+        
         try:
             # ✅ MUST USE prepare
             new_obj, old_obj = self._prepare_object(object_id, updates, actor, force)

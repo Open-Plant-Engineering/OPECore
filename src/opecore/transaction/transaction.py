@@ -51,6 +51,22 @@ class Transaction:
             prepared = []
 
             for object_id, updates in self.changes.items():
+            
+                # ✅ STEP A: fetch current state
+                current_data = self.engine.storage.read_latest(object_id)
+
+                if current_data is not None:
+                    current_obj = self.engine._deserialize(current_data)
+                else:
+                    current_obj = {}
+
+                # ✅ STEP B: REVALIDATE CLAIM
+                claim_by = current_obj.get("claim_by")
+
+                if claim_by is not None and claim_by != self.actor:
+                    raise Exception(f"Claim lost for object {object_id}")
+
+                # ✅ STEP C: proceed with normal prepare
                 new_obj, old_obj = self.engine._prepare_object(object_id, updates, self.actor)
                 prepared.append((object_id, old_obj, new_obj))
 
