@@ -39,6 +39,97 @@ class Engine:
     def query(self, key: str, value) -> List[int]:
         return list(self.index.query(key, value))
 
+    def query_advanced(self, filters: dict):
+        result = set()
+
+        for object_id in self.index.get_all_objects():
+            data = self._deserialize(self.storage.read_latest(object_id))
+
+            match = True
+
+            for key, value in filters.items():
+                if key.startswith("__"):
+                    continue
+                
+                if data.get(key) != value:
+                    match = False
+                    break
+
+            if match:
+                result.add(object_id)
+
+        return result
+
+    def query_or(self, conditions: list):
+        """
+        conditions = [
+            {"type": "Device"},
+            {"type": "Site"}
+        ]
+        """
+
+        result = set()
+
+        for cond in conditions:
+            partial = self.query_multiple(cond)
+            result = result.union(partial)
+
+        return result
+
+    def query_multiple(self, filters: dict):
+        """
+        filters = {
+            "type": "Device",
+            "owner": 1
+        }
+        """
+
+        if not filters:
+            return set()
+
+        result_sets = []
+
+        for key, value in filters.items():
+            ids = set(self.query(key, value))
+            result_sets.append(ids)
+
+        # ✅ intersection (AND logic)
+        result = result_sets[0]
+
+        for s in result_sets[1:]:
+            result = result.intersection(s)
+
+        return result
+    
+    def query_complex(self, query: dict):
+        """
+        Example:
+        {
+            "AND": {"owner": 1},
+            "OR": [
+                {"type": "Device"},
+                {"type": "Site"}
+            ]
+        }
+        """
+
+        result = None
+
+        # ✅ AND part
+        if "AND" in query:
+            result = self.query_multiple(query["AND"])
+
+        # ✅ OR part
+        if "OR" in query:
+            or_result = self.query_or(query["OR"])
+
+            if result is None:
+                result = or_result
+            else:
+                result = result.intersection(or_result)
+
+        return result if result else set()
+
     # ✅ ===============================
     # WRITE OPERATIONS
     # ✅ ===============================

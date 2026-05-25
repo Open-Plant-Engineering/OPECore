@@ -44,16 +44,9 @@ class Transaction:
         locked_objects = []
 
         try:
-            # ✅ STEP 1: lock ALL
-            for object_id in self.changes:
-                if not self.engine.lock_manager.acquire(object_id, "__all__", self.actor):
-                    raise Exception(f"Failed to lock {object_id}")
-
-                locked_objects.append(object_id)
-
-            # ✅ STEP 2: PREPARE
             prepared = []
 
+            # ✅ STEP 1: VALIDATION FIRST
             for object_id, updates in self.changes.items():
             
                 # ✅ STEP A: current version
@@ -83,6 +76,27 @@ class Transaction:
                 )
 
                 prepared.append((object_id, old_obj, new_obj))
+
+            # ✅ STEP 2: lock ALL
+            for object_id in self.changes:
+                if not self.engine.lock_manager.acquire(object_id, "__all__", self.actor):
+                    raise Exception(f"Failed to lock {object_id}")
+
+                locked_objects.append(object_id)
+                
+            # ✅ STEP 2.5: RE-VALIDATE after lock (CRITICAL)
+            for object_id in self.changes:
+                current_data = self.engine.storage.read_latest(object_id)
+
+                if current_data is not None:
+                    current_obj = self.engine._deserialize(current_data)
+                else:
+                    current_obj = {}
+
+                claim_by = current_obj.get("claim_by")
+
+                if claim_by is not None and claim_by != self.actor:
+                    raise Exception(f"Object {object_id} lost ownership before commit")
 
             # ✅ STEP 3: WAL LOG (CRITICAL)
             self.engine.storage.wal.log_transaction(self.actor, self.changes)
