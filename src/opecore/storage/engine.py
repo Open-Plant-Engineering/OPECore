@@ -1,7 +1,7 @@
-import struct, os, time
+import struct, os, time, json
 from typing import Optional, Dict
 from opecore.storage.wal import WAL
-
+from opecore.core.constants import DELETE
 
 class StorageEngine:
     """
@@ -89,9 +89,6 @@ class StorageEngine:
 
         self.version_counter += 1
         version_id = self.version_counter
-
-        # ✅ STEP 1: LOG FIRST
-        self.wal.log(object_id, data)
 
         # ✅ STEP 2: WRITE ACTUAL DATA
         with open(self.path, "ab") as f:
@@ -258,13 +255,13 @@ class StorageEngine:
     def _replay_append(self, object_id: int, data: bytes):
         timestamp = time.time()
         parent_offset = self.head_index.get(object_id, -1)
-    
+
         self.version_counter += 1
         version_id = self.version_counter
-    
+
         with open(self.path, "ab") as f:
             offset = f.tell()
-    
+
             header = struct.pack(
                 self.HEADER_FORMAT,
                 object_id,
@@ -273,8 +270,50 @@ class StorageEngine:
                 parent_offset,
                 len(data),
             )
-    
+
             f.write(header)
             f.write(data)
-    
+
         self.head_index[object_id] = offset
+
+    def _recover_from_wal(self):
+        entry = self.wal.read()
+
+        if not entry:
+            return
+
+        if entry.get("type") != "transaction":
+            return
+
+        print("⚠ WAL RECOVERY START")
+
+        changes = entry["changes"]
+
+        # ✅ replay directly (NO Engine call)
+        for obj_id_str, updates in changes.items():
+            object_id = int(obj_id_str)
+
+            # ✅ reconstruct object
+            current_data = self.read_latest(object_id)
+
+            if current_data is None:
+                obj = {}
+            else:
+                obj = json.loads(current_data.decode())
+
+            old_obj = obj.copy()
+
+            for key, value in updates.items():
+                if value is DELETE:
+                    obj.pop(key, None)
+                else:
+                    obj[key] = value
+
+            # ✅ write recovered version
+            binary = json.dumps(obj).encode()
+            self._replay_append(object_id, binary)
+
+        # ✅ clear WAL after recovery
+        self.wal.clear()
+
+        print("✅ WAL RECOVERY COMPLETE")

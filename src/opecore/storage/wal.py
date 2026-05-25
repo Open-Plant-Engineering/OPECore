@@ -3,38 +3,28 @@ import os
 
 
 class WAL:
-    """
-    Simple Write-Ahead Log.
-    """
-
     def __init__(self, path: str):
         self.path = path + ".wal"
 
-    # ✅ write log before actual write
-    def log(self, object_id: int, data: bytes):
+    def log_transaction(self, owner: str, changes: dict):
         entry = {
-            "object_id": object_id,
-            "data": data.decode()
+            "type": "transaction",
+            "owner": owner,
+            "changes": changes
         }
 
-        with open(self.path, "a") as f:
-            f.write(json.dumps(entry) + "\n")
+        with open(self.path, "w") as f:
+            f.write(json.dumps(entry))
             f.flush()
-            os.fsync(f.fileno())  # ✅ ensure disk write
+            os.fsync(f.fileno())
 
-    # ✅ read WAL entries
-    def read_all(self):
+    def read(self):
         if not os.path.exists(self.path):
-            return []
+            return None
 
-        entries = []
         with open(self.path, "r") as f:
-            for line in f:
-                entries.append(json.loads(line.strip()))
+            return json.loads(f.read())
 
-        return entries
-
-    # ✅ clear WAL after commit
     def clear(self):
         if os.path.exists(self.path):
             os.remove(self.path)

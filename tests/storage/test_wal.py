@@ -1,15 +1,21 @@
 def test_wal_recovery(tmp_path):
-    from opecore.storage.engine import StorageEngine
+    from opecore.core.engine import Engine
 
     db_path = str(tmp_path / "test.db")
 
-    # simulate crash BEFORE commit
-    engine = StorageEngine(db_path)
+    # ✅ simulate crash BEFORE commit completes
+    engine = Engine(db_path)
 
-    engine.wal.log(1, b'{"claim_by":"Alice"}')
+    # directly write WAL entry (simulate crash before commit finishes)
+    engine.storage.wal.log_transaction(
+        "A",
+        {
+            "1": {"claim_by": "Alice"}
+        }
+    )
 
-    # new engine → recovery
-    engine2 = StorageEngine(db_path)
+    # ✅ new engine triggers recovery
+    engine2 = Engine(db_path)
 
     data = engine2.read_latest(1)
 
