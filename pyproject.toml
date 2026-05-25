@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,10 +7,20 @@ name = "opecore"
 version = "0.1.0"
 description = "Open Plant Engineering Core - Versioned Object Storage Engine"
 authors = [
-    { name="Your Name" }
+    { name = "Your Name" }
 ]
-dependencies = []
+readme = "README.md"
 requires-python = ">=3.9"
+dependencies = []
 
+# ✅ Optional but recommended
+[project.urls]
+Homepage = "https://github.com/your-org/opecore"
+
+# ✅ Package discovery (correct for src layout)
 [tool.setuptools.packages.find]
-where = ["."]
+where = ["src"]
+
+# ✅ (future-proof) include package data if needed
+[tool.setuptools]
+include-package-data = true
