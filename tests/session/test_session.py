@@ -1,25 +1,23 @@
 import time
 
-
 def test_session_snapshot(tmp_path):
     from opecore.core.engine import Engine
     from opecore.session.session import Session
+    import time
 
     engine = Engine(str(tmp_path / "test.db"))
 
-    engine.update_attribute(1, "claim_by", "Alice", "A")
+    engine.update_attribute(1, "claim_by", "A", "A")
 
     session = Session(engine)
 
     time.sleep(0.001)
-    engine.update_attribute(1, "claim_by", "Bob", "B")
+    engine.update_attribute(1, "amount", 100, "A")
 
-    # session still sees old version
     data = session.read(1)
-    assert b"Alice" in data
+    assert b"100" not in data
 
-    # refresh → now see new value
     session.refresh()
 
     data = session.read(1)
-    assert b"Bob" in data
+    assert b"100" in data

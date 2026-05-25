@@ -41,7 +41,7 @@ def test_update_existing_object(tmp_path):
 
     engine = Engine(str(tmp_path / "test.db"))
 
-    engine.update_attribute(1, "claim_by", "Alice", "A")
+    engine.update_attribute(1, "claim_by", "A", "A")
 
     engine.update_object(
         1,
@@ -53,7 +53,6 @@ def test_update_existing_object(tmp_path):
 
     data = engine.read_latest(1)
 
-    assert b"Alice" in data
     assert b"2000" in data
 
 def test_transaction_index(tmp_path):

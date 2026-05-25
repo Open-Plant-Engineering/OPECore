@@ -7,7 +7,7 @@ def test_attribute_delete(tmp_path):
     engine.update_object(
         1,
         {
-            "claim_by": "Alice",
+            "claim_by": "A",
             "amount": 1000,
         },
         "A"
@@ -26,5 +26,4 @@ def test_attribute_delete(tmp_path):
     assert b"claim_by" not in data
     assert b"1000" in data
 
-    # index check
-    assert 1 not in engine.query("claim_by", "Alice")
+    assert 1 not in engine.query("claim_by", "A")

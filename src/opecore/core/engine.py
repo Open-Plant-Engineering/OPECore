@@ -6,6 +6,7 @@ from opecore.lock.persistent import PersistentLockManager
 from opecore.index.index import IndexEngine
 from opecore.core.constants import DELETE
 from opecore.transaction.transaction import Transaction
+from opecore.auth.policy import AuthorizationPolicy
 
 
 class Engine:
@@ -22,6 +23,7 @@ class Engine:
         self.storage = StorageEngine(db_path)
         self.lock_manager = PersistentLockManager("locks")
         self.index = IndexEngine()
+        self.auth = AuthorizationPolicy()
         self._rebuild_index()
 
     # ✅ ===============================
@@ -80,55 +82,22 @@ class Engine:
             # no old state → everything is new
             self.index.update(object_id, {}, obj)
 
-    def update_object(
-        self,
-        object_id: int,
-        updates: dict,
-        owner: str,
-    ):
-        """
-        Multi-field atomic update (transaction).
-        """
-
+    def update_object(self, object_id: int, updates: dict, owner: str):
         lock_key = "__all__"
 
-        # ✅ STEP 1: lock
         if not self.lock_manager.acquire(object_id, lock_key, owner):
             raise Exception(f"Object {object_id} is locked")
 
         try:
-            # ✅ STEP 2: read current
-            current_data = self.storage.read_latest(object_id)
+            # ✅ MUST USE prepare
+            new_obj, old_obj = self._prepare_object(object_id, updates, owner)
 
-            if current_data is None:
-                obj = {}
-            else:
-                obj = self._deserialize(current_data)
-    
-            old_obj = obj.copy()
-    
-            # ✅ APPLY ALL CHANGES SAFELY
-            for key, value in updates.items():
-                if value is DELETE:
-                    obj.pop(key, None)
-                else:
-                    obj[key] = value
-    
-            # ✅ SERIALIZE BEFORE WRITING
-            binary = self._serialize(obj)
-    
-            # ✅ ONLY NOW WRITE (safe point)
+            binary = self._serialize(new_obj)
             self.storage.append(object_id, binary)
-    
-            # ✅ UPDATE INDEX AFTER SUCCESS
-            self._update_index(object_id, old_obj, obj)
-    
-        except Exception as e:
-            # ✅ NOTHING WRITTEN → safe rollback (implicit)
-            raise e
-    
+
+            self._update_index(object_id, old_obj, new_obj)
+
         finally:
-            # ✅ release lock
             self.lock_manager.release(object_id, lock_key, owner)
 
     def begin_transaction(self, owner: str):
@@ -159,7 +128,7 @@ class Engine:
 
         self._update_index(object_id, old_obj, obj)
 
-    def _prepare_object(self, object_id, updates):
+    def _prepare_object(self, object_id, updates, actor=None):
         current_data = self.storage.read_latest(object_id)
 
         if current_data is None:
@@ -167,8 +136,14 @@ class Engine:
         else:
             obj = self._deserialize(current_data)
 
+        # ✅ AUTH CHECK
+        if actor is not None:
+            if not self.auth.can_update(object_id, obj, updates, actor):
+                raise Exception(f"Unauthorized update on object {object_id}")
+
         old_obj = obj.copy()
 
+        # ✅ APPLY UPDATES
         for key, value in updates.items():
             if value is DELETE:
                 obj.pop(key, None)
