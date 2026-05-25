@@ -1,48 +1,66 @@
-import time
 import struct
+import time
+from typing import Optional, Dict
+
+# ✅ record types (future-ready)
+RECORD_TYPE_DATA = 1
 
 
 class StorageEngine:
-    HEADER_FORMAT = "QQdqI"   # object_id, timestamp, parent_offset, data_size
+    """
+    Append-only storage engine with version chaining.
+    """
+
+    HEADER_FORMAT = "QQdqI"
     HEADER_SIZE = struct.calcsize(HEADER_FORMAT)
 
-    def __init__(self, path="data.db"):
+    def __init__(self, path: str = "data.db"):
         self.path = path
-        self.head_index = {}  # object_id → latest offset
+        self.head_index: Dict[int, int] = {}
         self.version_counter = 0
 
-        # rebuild index from file (simple scan for now)
         self._load_index()
+
+    # ✅ ===============================
+    # LOAD FILE → BUILD HEAD INDEX
+    # ✅ ===============================
 
     def _load_index(self):
         try:
             with open(self.path, "rb") as f:
                 offset = 0
 
-                print("\n--- LOADING INDEX ---")
-
                 while True:
                     header = f.read(self.HEADER_SIZE)
                     if not header:
                         break
-                    
-                    object_id, version_id, timestamp, parent, size = struct.unpack(
-                        self.HEADER_FORMAT, header
-                    )
 
-                    print(f"Loaded → object={object_id}, timestamp={timestamp}, parent={parent}")
+                    (
+                        object_id,
+                        version_id,
+                        timestamp,
+                        parent_offset,
+                        size,
+                    ) = struct.unpack(self.HEADER_FORMAT, header)
 
+                    # move forward
                     f.seek(size, 1)
 
+                    # update HEAD pointer
                     self.head_index[object_id] = offset
+
+                    # track version
+                    self.version_counter = max(self.version_counter, version_id)
 
                     offset += self.HEADER_SIZE + size
 
-                print("--- INDEX LOAD COMPLETE ---\n")
         except FileNotFoundError:
             pass
 
-    # ✅ APPEND NEW VERSION
+    # ✅ ===============================
+    # WRITE (APPEND)
+    # ✅ ===============================
+
     def append(self, object_id: int, data: bytes):
         timestamp = time.time()
 
@@ -50,8 +68,6 @@ class StorageEngine:
 
         self.version_counter += 1
         version_id = self.version_counter
-
-        print(f"APPEND → obj={object_id}, ver={version_id}, ts={timestamp}, parent={parent_offset}")
 
         with open(self.path, "ab") as f:
             offset = f.tell()
@@ -70,92 +86,101 @@ class StorageEngine:
 
         self.head_index[object_id] = offset
 
-    # ✅ READ LATEST VERSION
-    def read_latest(self, object_id: int):
-        offset = self.head_index.get(object_id)
+    # ✅ ===============================
+    # READ APIs
+    # ✅ ===============================
 
+    def read_latest(self, object_id: int) -> Optional[bytes]:
+        offset = self.head_index.get(object_id)
         if offset is None:
             return None
 
-        return self._read_at_offset(offset)
+        return self._read_record(offset)["data"]
 
-    # ✅ READ AS OF TIME (YOUR MAIN FEATURE)
-    def read_as_of(self, object_id: int, timestamp):
-        print(f"\n--- READ_AS_OF START ---")
-        print(f"Requested timestamp: {timestamp}")
-    
+    def read_as_of(self, object_id: int, timestamp: float) -> Optional[bytes]:
         offset = self.head_index.get(object_id)
-        print(f"HEAD offset: {offset}")
-    
-        step = 0
-    
+
         while offset is not None and offset != -1:
             record = self._read_record(offset)
-    
-            print(f"\nStep {step}")
-            print(f"Offset: {offset}")
-            print(f"Record timestamp: {record['timestamp']}")
-            print(f"Parent offset: {record['parent']}")
-            print(f"Data: {record['data']}")
-    
+
             if record["timestamp"] <= timestamp:
-                print(f"✅ MATCH FOUND → returning {record['data']}")
                 return record["data"]
-    
-            print("❌ Too new, moving to parent")
+
             offset = record["parent"]
-            step += 1
-    
-        print("❌ No matching version found")
+
         return None
 
-    # ✅ INTERNAL READ
-    def _read_record(self, offset):
+    # ✅ ===============================
+    # INTERNAL READ
+    # ✅ ===============================
+
+    def _read_record(self, offset: int):
         with open(self.path, "rb") as f:
             f.seek(offset)
 
             header = f.read(self.HEADER_SIZE)
-            object_id, version_id, timestamp, parent, size = struct.unpack(
-                self.HEADER_FORMAT, header
-            )
+
+            (
+                object_id,
+                version_id,
+                timestamp,
+                parent_offset,
+                size,
+            ) = struct.unpack(self.HEADER_FORMAT, header)
 
             data = f.read(size)
 
             return {
                 "object_id": object_id,
+                "version_id": version_id,
                 "timestamp": timestamp,
-                "parent": parent,
+                "parent": parent_offset,
                 "data": data,
             }
 
-    def _read_at_offset(self, offset):
-        return self._read_record(offset)["data"]
+    # ✅ ===============================
+    # DEBUG / DEV ONLY
+    # ✅ ===============================
 
     def read_all(self):
+        """
+        Debug utility — not for production use.
+        """
         records = []
 
-        with open(self.path, "rb") as f:
-            offset = 0
+        try:
+            with open(self.path, "rb") as f:
+                offset = 0
 
-            while True:
-                header = f.read(self.HEADER_SIZE)
-                if not header:
-                    break
+                while True:
+                    header = f.read(self.HEADER_SIZE)
+                    if not header:
+                        break
 
-                object_id, timestamp, parent, size = struct.unpack(
-                    self.HEADER_FORMAT, header
-                )
+                    (
+                        object_id,
+                        version_id,
+                        timestamp,
+                        parent_offset,
+                        size,
+                    ) = struct.unpack(self.HEADER_FORMAT, header)
 
-                data = f.read(size)
+                    data = f.read(size)
 
-                records.append({
-                    "object_id": object_id,
-                    "timestamp": timestamp,
-                    "parent": parent,
-                    "data": data,
-                    "offset": offset
-                })
+                    records.append(
+                        {
+                            "object_id": object_id,
+                            "version_id": version_id,
+                            "timestamp": timestamp,
+                            "parent": parent_offset,
+                            "data": data,
+                            "offset": offset,
+                        }
+                    )
 
-                offset += self.HEADER_SIZE + size
+                    offset += self.HEADER_SIZE + size
+
+        except FileNotFoundError:
+            pass
 
         return records

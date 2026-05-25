@@ -1,37 +1,47 @@
 import time
+from typing import Dict, Tuple, Optional
 
 
 class LockManager:
-    def __init__(self):
-        self.locks = {}   # (object_id, attribute) → owner
+    """
+    In-memory lock manager (single-process use only).
+    """
 
-    def acquire(self, object_id, attribute, owner):
+    def __init__(self):
+        self.locks: Dict[Tuple[int, str], dict] = {}
+
+    def acquire(self, object_id: int, attribute: str, owner: str) -> bool:
         key = (object_id, attribute)
 
         if key in self.locks:
-            return False  # already locked
+            return False
 
         self.locks[key] = {
             "owner": owner,
-            "timestamp": time.time()
+            "timestamp": time.time(),
         }
         return True
 
-    def release(self, object_id, attribute, owner):
+    def release(self, object_id: int, attribute: str, owner: str) -> bool:
         key = (object_id, attribute)
 
-        if key not in self.locks:
+        lock = self.locks.get(key)
+        if not lock:
             return False
 
-        if self.locks[key]["owner"] != owner:
-            return False  # not owner
+        if lock["owner"] != owner:
+            return False
 
         del self.locks[key]
         return True
 
-    def is_locked(self, object_id, attribute):
+    def is_locked(self, object_id: int, attribute: str) -> bool:
         return (object_id, attribute) in self.locks
 
-    def get_owner(self, object_id, attribute):
-        key = (object_id, attribute)
-        return self.locks.get(key)
+    def get_owner(self, object_id: int, attribute: str) -> Optional[str]:
+        lock = self.locks.get((object_id, attribute))
+
+        if not lock:
+            return None
+
+        return lock["owner"]

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "opecore"
-version = "0.1.0"
+version = "0.0.1"
 description = "Open Plant Engineering Core - Versioned Object Storage Engine"
 authors = [
     { name = "Your Name" }

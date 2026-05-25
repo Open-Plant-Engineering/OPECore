@@ -1,28 +1,62 @@
+from typing import Optional, List
+import json
+
 from opecore.storage.engine import StorageEngine
 from opecore.lock.persistent import PersistentLockManager
 from opecore.index.index import IndexEngine
 
+
 class Engine:
-    def __init__(self, db_path="data.db"):
+    """
+    High-level orchestration layer.
+
+    Responsibilities:
+    - coordinate locking
+    - manage object updates
+    - integrate storage + index
+    """
+
+    def __init__(self, db_path: str = "data.db"):
         self.storage = StorageEngine(db_path)
         self.lock_manager = PersistentLockManager("locks")
         self.index = IndexEngine()
 
-    # ✅ READ
-    def read_latest(self, object_id):
+    # ✅ ===============================
+    # READ OPERATIONS
+    # ✅ ===============================
+
+    def read_latest(self, object_id: int) -> Optional[bytes]:
         return self.storage.read_latest(object_id)
 
-    def read_as_of(self, object_id, timestamp):
+    def read_as_of(self, object_id: int, timestamp: float) -> Optional[bytes]:
         return self.storage.read_as_of(object_id, timestamp)
 
-    # ✅ TRANSACTIONAL UPDATE
-    def update_attribute(self, object_id, attribute, new_value, owner):
-        # STEP 1: LOCK
-        if not self.lock_manager.acquire(object_id, attribute, owner):
-            raise Exception("Lock already acquired by another user")
+    def query(self, key: str, value) -> List[int]:
+        return list(self.index.query(key, value))
+
+    # ✅ ===============================
+    # WRITE OPERATIONS
+    # ✅ ===============================
+
+    def update_attribute(
+        self,
+        object_id: int,
+        attribute: str,
+        new_value,
+        owner: str,
+    ):
+        """
+        Single-attribute update (atomic per object).
+        """
+
+        lock_key = "__all__"  # ✅ object-level lock
+
+        # ✅ STEP 1: acquire lock
+        if not self.lock_manager.acquire(object_id, lock_key, owner):
+            raise Exception(f"Object {object_id} is locked")
 
         try:
-            # STEP 2: READ CURRENT OBJECT
+            # ✅ STEP 2: read latest state
             current_data = self.storage.read_latest(object_id)
 
             if current_data is None:
@@ -30,25 +64,33 @@ class Engine:
             else:
                 obj = self._deserialize(current_data)
 
-            # STEP 3: MODIFY
+            # ✅ STEP 3: apply change
             obj[attribute] = new_value
 
-            # STEP 4: WRITE NEW VERSION
+            # ✅ STEP 4: persist
             binary = self._serialize(obj)
             self.storage.append(object_id, binary)
-            
-            # ✅ update index
-            self.index.add(object_id, obj)
+
+            # ✅ STEP 5: update index
+            self._update_index(object_id, obj)
 
         finally:
-            # STEP 5: RELEASE LOCK
-            self.lock_manager.release(object_id, attribute, owner)
+            # ✅ STEP 6: release lock
+            self.lock_manager.release(object_id, lock_key, owner)
 
-    # ✅ serialization (simple for now)
+    # ✅ ===============================
+    # INTERNAL HELPERS
+    # ✅ ===============================
+
+    def _update_index(self, object_id: int, obj: dict):
+        """
+        Update in-memory index.
+        (Later: this will call persistent index)
+        """
+        self.index.add(object_id, obj)
+
     def _serialize(self, obj: dict) -> bytes:
-        import json
-        return json.dumps(obj).encode()
+        return json.dumps(obj, separators=(",", ":")).encode()
 
     def _deserialize(self, data: bytes) -> dict:
-        import json
         return json.loads(data.decode())
