@@ -160,3 +160,12 @@ class Engine:
         self.storage.append(object_id, binary)
     
         self._update_index(object_id, old_obj, new_obj)
+
+    def _get_object_version(self, object_id):
+        data = self.storage.read_latest(object_id)
+    
+        if data is None:
+            return None
+    
+        # ✅ version = raw content snapshot (simple + safe)
+        return data

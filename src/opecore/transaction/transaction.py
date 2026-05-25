@@ -14,6 +14,8 @@ class Transaction:
         # staged updates
         self.changes: Dict[int, dict] = {}
 
+        self.snapshot_versions = {}
+
         self.active = True
 
     # ✅ ===============================
@@ -26,6 +28,8 @@ class Transaction:
 
         if object_id not in self.changes:
             self.changes[object_id] = {}
+            
+            self.snapshot_versions[object_id] = self.engine._get_object_version(object_id)
 
         self.changes[object_id].update(updates)
 
@@ -52,22 +56,32 @@ class Transaction:
 
             for object_id, updates in self.changes.items():
             
-                # ✅ STEP A: fetch current state
-                current_data = self.engine.storage.read_latest(object_id)
+                # ✅ STEP A: current version
+                current_version = self.engine._get_object_version(object_id)
 
-                if current_data is not None:
-                    current_obj = self.engine._deserialize(current_data)
-                else:
-                    current_obj = {}
+                original_version = self.snapshot_versions.get(object_id)
 
-                # ✅ STEP B: REVALIDATE CLAIM
-                claim_by = current_obj.get("claim_by")
+                # ✅ STEP B: detect change
+                if original_version != current_version:
+                    # ✅ re-check ownership before failing
+                    current_data = self.engine.storage.read_latest(object_id)
+                
+                    if current_data is not None:
+                        current_obj = self.engine._deserialize(current_data)
+                    else:
+                        current_obj = {}
+                
+                    claim_by = current_obj.get("claim_by")
+                
+                    # ❌ ONLY fail if ownership changed
+                    if claim_by is None or claim_by != self.actor:
+                        raise Exception(f"Object {object_id} changed during transaction")
 
-                if claim_by is not None and claim_by != self.actor:
-                    raise Exception(f"Claim lost for object {object_id}")
+                # ✅ STEP C: proceed
+                new_obj, old_obj = self.engine._prepare_object(
+                    object_id, updates, self.actor
+                )
 
-                # ✅ STEP C: proceed with normal prepare
-                new_obj, old_obj = self.engine._prepare_object(object_id, updates, self.actor)
                 prepared.append((object_id, old_obj, new_obj))
 
             # ✅ STEP 3: WAL LOG (CRITICAL)
