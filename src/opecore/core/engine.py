@@ -5,6 +5,8 @@ from opecore.storage.engine import StorageEngine
 from opecore.lock.persistent import PersistentLockManager
 from opecore.index.index import IndexEngine
 from opecore.core.constants import DELETE
+from opecore.transaction.transaction import Transaction
+
 
 class Engine:
     """
@@ -128,3 +130,55 @@ class Engine:
         finally:
             # ✅ release lock
             self.lock_manager.release(object_id, lock_key, owner)
+
+    def begin_transaction(self, owner: str):
+        return Transaction(self, owner)
+
+    def _apply_transaction_update(self, object_id: int, updates: dict):
+        """
+        INTERNAL: used by transaction commit.
+        """
+
+        current_data = self.storage.read_latest(object_id)
+
+        if current_data is None:
+            obj = {}
+        else:
+            obj = self._deserialize(current_data)
+
+        old_obj = obj.copy()
+
+        for key, value in updates.items():
+            if value is DELETE:
+                obj.pop(key, None)
+            else:
+                obj[key] = value
+
+        binary = self._serialize(obj)
+        self.storage.append(object_id, binary)
+
+        self._update_index(object_id, old_obj, obj)
+
+    def _prepare_object(self, object_id, updates):
+        current_data = self.storage.read_latest(object_id)
+
+        if current_data is None:
+            obj = {}
+        else:
+            obj = self._deserialize(current_data)
+
+        old_obj = obj.copy()
+
+        for key, value in updates.items():
+            if value is DELETE:
+                obj.pop(key, None)
+            else:
+                obj[key] = value
+
+        return obj, old_obj
+
+    def _commit_object(self, object_id, old_obj, new_obj):
+        binary = self._serialize(new_obj)
+        self.storage.append(object_id, binary)
+    
+        self._update_index(object_id, old_obj, new_obj)
