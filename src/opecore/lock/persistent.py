@@ -11,28 +11,38 @@ class PersistentLockManager:
         self.lock_dir = lock_dir
         os.makedirs(self.lock_dir, exist_ok=True)
 
-    # ✅ sanitize filenames
+    # ✅ ===============================
+    # INTERNAL HELPERS
+    # ✅ ===============================
+
     def _sanitize(self, value: str) -> str:
-        return str(value).replace("*", "__all__").replace("/", "_")
+        """
+        Make attribute safe for filenames.
+        """
+        return str(value).replace("*", "__all__").replace(" ", "_")
 
     def _lock_path(self, object_id: int, attribute: str) -> str:
         safe_attr = self._sanitize(attribute)
         return os.path.join(self.lock_dir, f"{object_id}_{safe_attr}.lock")
 
+    # ✅ ===============================
+    # ACQUIRE LOCK
+    # ✅ ===============================
+
     def acquire(self, object_id: int, attribute: str, owner: str) -> bool:
         path = self._lock_path(object_id, attribute)
 
-        # fast check
-        if os.path.exists(path):
-            return False
-
         try:
-            # ✅ atomic file creation
+            # ✅ atomic creation
             with open(path, "x") as f:
                 f.write(owner)
             return True
         except FileExistsError:
             return False
+
+    # ✅ ===============================
+    # RELEASE LOCK
+    # ✅ ===============================
 
     def release(self, object_id: int, attribute: str, owner: str) -> bool:
         path = self._lock_path(object_id, attribute)
@@ -54,6 +64,10 @@ class PersistentLockManager:
             return True
         except FileNotFoundError:
             return False
+
+    # ✅ ===============================
+    # STATUS
+    # ✅ ===============================
 
     def is_locked(self, object_id: int, attribute: str) -> bool:
         return os.path.exists(self._lock_path(object_id, attribute))
