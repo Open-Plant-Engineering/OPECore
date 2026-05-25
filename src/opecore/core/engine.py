@@ -260,3 +260,44 @@ class Engine:
     
         # ✅ version = raw content snapshot (simple + safe)
         return data
+    
+    def get_parent(self, object_id):
+        data = self.storage.read_latest(object_id)
+    
+        if not data:
+            return None
+    
+        obj = self._deserialize(data)
+        return obj.get("owner")
+    
+    def get_children(self, parent_id):
+        return list(self.query("owner", parent_id))
+    
+    def get_ancestors(self, object_id):
+        ancestors = []
+        current = object_id
+    
+        while True:
+            parent = self.get_parent(current)
+    
+            if parent is None:
+                break
+            
+            ancestors.append(parent)
+            current = parent
+    
+        return ancestors
+    
+    def get_subtree(self, root_id):
+        result = set()
+        stack = [root_id]
+    
+        while stack:
+            current = stack.pop()
+            result.add(current)
+    
+            children = self.get_children(current)
+            stack.extend(children)
+    
+        return result
+    
