@@ -1,61 +1,32 @@
-from typing import Dict, Set, Any
-
-
 class IndexEngine:
-    """
-    Attribute-based index with update support.
-    """
-
     def __init__(self):
-        self.index: Dict[str, Dict[Any, Set[int]]] = {}
+        self.index = {}
 
-    # ✅ ADD / UPDATE INDEX
-    def update(self, object_id: int, old_obj: dict, new_obj: dict):
-        """
-        Update index by removing stale values and adding new ones.
-        """
-
+    def update(self, object_id, old_obj, new_obj):
         old_obj = old_obj or {}
 
-        # ✅ REMOVE OLD VALUES
         for key, old_value in old_obj.items():
-            # if key removed OR value changed
             if key not in new_obj or new_obj[key] != old_value:
                 self._remove(object_id, key, old_value)
 
-        # ✅ ADD NEW VALUES
         for key, new_value in new_obj.items():
-            # if key new OR value changed
             if key not in old_obj or old_obj[key] != new_value:
                 self._add(object_id, key, new_value)
 
-    # ✅ ADD SINGLE ENTRY
-    def _add(self, object_id: int, key: str, value):
+    def _add(self, object_id, key, value):
         if key not in self.index:
             self.index[key] = {}
-
         if value not in self.index[key]:
             self.index[key][value] = set()
-
         self.index[key][value].add(object_id)
 
-    # ✅ REMOVE SINGLE ENTRY
-    def _remove(self, object_id: int, key: str, value):
+    def _remove(self, object_id, key, value):
         if key in self.index and value in self.index[key]:
             self.index[key][value].discard(object_id)
-
-            # cleanup empty buckets
             if not self.index[key][value]:
                 del self.index[key][value]
-
-        # cleanup empty keys
         if key in self.index and not self.index[key]:
             del self.index[key]
 
-    # ✅ QUERY
-    def query(self, key: str, value) -> Set[int]:
+    def query(self, key, value):
         return self.index.get(key, {}).get(value, set())
-
-    # ✅ DEBUG
-    def dump(self):
-        return self.index

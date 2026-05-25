@@ -49,7 +49,7 @@ class Engine:
         Single-attribute update (atomic per object).
         """
 
-        lock_key = "__all__"  # ✅ object-level lock
+        lock_key = "__all__"  # object-level lock
 
         # ✅ STEP 1: acquire lock
         if not self.lock_manager.acquire(object_id, lock_key, owner):
@@ -64,15 +64,18 @@ class Engine:
             else:
                 obj = self._deserialize(current_data)
 
+            # ✅ IMPORTANT: capture old state BEFORE change
+            old_obj = obj.copy()
+
             # ✅ STEP 3: apply change
             obj[attribute] = new_value
 
-            # ✅ STEP 4: persist
+            # ✅ STEP 4: persist (ONLY ONCE ✅)
             binary = self._serialize(obj)
             self.storage.append(object_id, binary)
 
-            # ✅ STEP 5: update index
-            self._update_index(object_id, obj)
+            # ✅ STEP 5: update index correctly
+            self._update_index(object_id, old_obj, obj)
 
         finally:
             # ✅ STEP 6: release lock
@@ -82,12 +85,8 @@ class Engine:
     # INTERNAL HELPERS
     # ✅ ===============================
 
-    def _update_index(self, object_id: int, obj: dict):
-        """
-        Update in-memory index.
-        (Later: this will call persistent index)
-        """
-        self.index.add(object_id, obj)
+    def _update_index(self, object_id: int, old_obj: dict, new_obj: dict):
+        self.index.update(object_id, old_obj, new_obj)
 
     def _serialize(self, obj: dict) -> bytes:
         return json.dumps(obj, separators=(",", ":")).encode()

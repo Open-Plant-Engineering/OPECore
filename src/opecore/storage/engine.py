@@ -2,13 +2,20 @@ import struct
 import time
 from typing import Optional, Dict
 
-# ✅ record types (future-ready)
-RECORD_TYPE_DATA = 1
-
 
 class StorageEngine:
     """
     Append-only storage engine with version chaining.
+
+    Each record:
+        [HEADER][DATA]
+
+    HEADER format:
+        object_id (Q)
+        version_id (Q)
+        timestamp (d)
+        parent_offset (q)
+        data_size (I)
     """
 
     HEADER_FORMAT = "QQdqI"
@@ -16,7 +23,7 @@ class StorageEngine:
 
     def __init__(self, path: str = "data.db"):
         self.path = path
-        self.head_index: Dict[int, int] = {}
+        self.head_index: Dict[int, int] = {}  # object_id -> latest offset
         self.version_counter = 0
 
         self._load_index()
@@ -26,6 +33,11 @@ class StorageEngine:
     # ✅ ===============================
 
     def _load_index(self):
+        """
+        Scan entire file and rebuild:
+        - head_index (latest version per object)
+        - version_counter (max version seen)
+        """
         try:
             with open(self.path, "rb") as f:
                 offset = 0
@@ -43,27 +55,34 @@ class StorageEngine:
                         size,
                     ) = struct.unpack(self.HEADER_FORMAT, header)
 
-                    # move forward
+                    # skip data
                     f.seek(size, 1)
 
-                    # update HEAD pointer
+                    # update latest pointer
                     self.head_index[object_id] = offset
 
-                    # track version
-                    self.version_counter = max(self.version_counter, version_id)
+                    # keep version monotonic
+                    if version_id > self.version_counter:
+                        self.version_counter = version_id
 
                     offset += self.HEADER_SIZE + size
 
         except FileNotFoundError:
+            # first run → file doesn't exist yet
             pass
 
     # ✅ ===============================
     # WRITE (APPEND)
     # ✅ ===============================
 
-    def append(self, object_id: int, data: bytes):
-        timestamp = time.time()
+    def append(self, object_id: int, data: bytes) -> int:
+        """
+        Append a new version.
 
+        Returns:
+            offset of the newly written record
+        """
+        timestamp = time.time()
         parent_offset = self.head_index.get(object_id, -1)
 
         self.version_counter += 1
@@ -86,6 +105,8 @@ class StorageEngine:
 
         self.head_index[object_id] = offset
 
+        return offset
+
     # ✅ ===============================
     # READ APIs
     # ✅ ===============================
@@ -98,6 +119,9 @@ class StorageEngine:
         return self._read_record(offset)["data"]
 
     def read_as_of(self, object_id: int, timestamp: float) -> Optional[bytes]:
+        """
+        Return the latest version whose timestamp <= given timestamp
+        """
         offset = self.head_index.get(object_id)
 
         while offset is not None and offset != -1:
@@ -114,11 +138,14 @@ class StorageEngine:
     # INTERNAL READ
     # ✅ ===============================
 
-    def _read_record(self, offset: int):
+    def _read_record(self, offset: int) -> dict:
         with open(self.path, "rb") as f:
             f.seek(offset)
 
             header = f.read(self.HEADER_SIZE)
+
+            if not header:
+                raise ValueError(f"Invalid read at offset {offset}")
 
             (
                 object_id,
@@ -144,7 +171,7 @@ class StorageEngine:
 
     def read_all(self):
         """
-        Debug utility — not for production use.
+        Debug utility — sequential scan of all records.
         """
         records = []
 
