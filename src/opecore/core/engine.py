@@ -82,15 +82,15 @@ class Engine:
             # no old state → everything is new
             self.index.update(object_id, {}, obj)
 
-    def update_object(self, object_id: int, updates: dict, owner: str):
+    def update_object(self, object_id: int, updates: dict, actor: str, force: bool = False):
         lock_key = "__all__"
 
-        if not self.lock_manager.acquire(object_id, lock_key, owner):
+        if not self.lock_manager.acquire(object_id, lock_key, actor):
             raise Exception(f"Object {object_id} is locked")
 
         try:
             # ✅ MUST USE prepare
-            new_obj, old_obj = self._prepare_object(object_id, updates, owner)
+            new_obj, old_obj = self._prepare_object(object_id, updates, actor, force)
 
             binary = self._serialize(new_obj)
             self.storage.append(object_id, binary)
@@ -98,7 +98,7 @@ class Engine:
             self._update_index(object_id, old_obj, new_obj)
 
         finally:
-            self.lock_manager.release(object_id, lock_key, owner)
+            self.lock_manager.release(object_id, lock_key, actor)
 
     def begin_transaction(self, owner: str):
         return Transaction(self, owner)
@@ -128,7 +128,7 @@ class Engine:
 
         self._update_index(object_id, old_obj, obj)
 
-    def _prepare_object(self, object_id, updates, actor=None):
+    def _prepare_object(self, object_id, updates, actor=None, force=False):
         current_data = self.storage.read_latest(object_id)
 
         if current_data is None:
@@ -138,12 +138,11 @@ class Engine:
 
         # ✅ AUTH CHECK
         if actor is not None:
-            if not self.auth.can_update(object_id, obj, updates, actor):
+            if not self.auth.can_update(object_id, obj, updates, actor, force):
                 raise Exception(f"Unauthorized update on object {object_id}")
 
         old_obj = obj.copy()
 
-        # ✅ APPLY UPDATES
         for key, value in updates.items():
             if value is DELETE:
                 obj.pop(key, None)

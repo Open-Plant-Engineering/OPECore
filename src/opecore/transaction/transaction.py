@@ -7,9 +7,9 @@ class Transaction:
     Multi-object transaction.
     """
 
-    def __init__(self, engine, owner: str):
+    def __init__(self, engine, actor: str):
         self.engine = engine
-        self.owner = owner
+        self.actor = actor
 
         # staged updates
         self.changes: Dict[int, dict] = {}
@@ -42,7 +42,7 @@ class Transaction:
         try:
             # ✅ STEP 1: lock ALL
             for object_id in self.changes:
-                if not self.engine.lock_manager.acquire(object_id, "__all__", self.owner):
+                if not self.engine.lock_manager.acquire(object_id, "__all__", self.actor):
                     raise Exception(f"Failed to lock {object_id}")
 
                 locked_objects.append(object_id)
@@ -51,11 +51,11 @@ class Transaction:
             prepared = []
 
             for object_id, updates in self.changes.items():
-                new_obj, old_obj = self.engine._prepare_object(object_id, updates)
+                new_obj, old_obj = self.engine._prepare_object(object_id, updates, self.actor)
                 prepared.append((object_id, old_obj, new_obj))
 
             # ✅ STEP 3: WAL LOG (CRITICAL)
-            self.engine.storage.wal.log_transaction(self.owner, self.changes)
+            self.engine.storage.wal.log_transaction(self.actor, self.changes)
 
             # ✅ STEP 4: APPLY writes
             for object_id, old_obj, new_obj in prepared:
@@ -68,7 +68,7 @@ class Transaction:
 
         finally:
             for object_id in locked_objects:
-                self.engine.lock_manager.release(object_id, "__all__", self.owner)
+                self.engine.lock_manager.release(object_id, "__all__", self.actor)
 
     # ✅ ===============================
     # ROLLBACK
