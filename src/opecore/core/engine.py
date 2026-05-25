@@ -4,7 +4,7 @@ import json
 from opecore.storage.engine import StorageEngine
 from opecore.lock.persistent import PersistentLockManager
 from opecore.index.index import IndexEngine
-
+from opecore.core.constants import DELETE
 
 class Engine:
     """
@@ -108,7 +108,10 @@ class Engine:
 
             # ✅ STEP 4: apply ALL updates
             for key, value in updates.items():
-                obj[key] = value
+                if value is DELETE:
+                    obj.pop(key, None)   # ✅ remove completely
+                else:
+                    obj[key] = value
 
             # ✅ STEP 5: single write
             binary = self._serialize(obj)
