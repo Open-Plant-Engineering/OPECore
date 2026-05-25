@@ -263,41 +263,56 @@ class Engine:
     
     def get_parent(self, object_id):
         data = self.storage.read_latest(object_id)
-    
+
         if not data:
             return None
-    
+
         obj = self._deserialize(data)
         return obj.get("owner")
-    
+
     def get_children(self, parent_id):
         return list(self.query("owner", parent_id))
-    
+
     def get_ancestors(self, object_id):
         ancestors = []
         current = object_id
-    
+
         while True:
             parent = self.get_parent(current)
-    
+
             if parent is None:
                 break
-            
+
             ancestors.append(parent)
             current = parent
-    
+
         return ancestors
-    
+
     def get_subtree(self, root_id):
         result = set()
         stack = [root_id]
-    
+
         while stack:
             current = stack.pop()
             result.add(current)
-    
+
             children = self.get_children(current)
             stack.extend(children)
-    
+
         return result
+
+    def query_in_subtree(self, root_id, filters: dict):
+        # ✅ get all nodes in subtree
+        subtree_ids = self.get_subtree(root_id)
+
+        # ✅ get filtered objects
+        filtered_ids = self.query_multiple(filters)
+
+        # ✅ intersection
+        return subtree_ids.intersection(filtered_ids)
     
+    def query_complex_in_subtree(self, root_id, query: dict):
+        subtree_ids = self.get_subtree(root_id)
+        filtered = self.query_complex(query)
+
+        return subtree_ids.intersection(filtered)
