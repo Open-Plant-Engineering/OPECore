@@ -102,24 +102,29 @@ class Engine:
                 obj = {}
             else:
                 obj = self._deserialize(current_data)
-
-            # ✅ STEP 3: snapshot old state
+    
             old_obj = obj.copy()
-
-            # ✅ STEP 4: apply ALL updates
+    
+            # ✅ APPLY ALL CHANGES SAFELY
             for key, value in updates.items():
                 if value is DELETE:
-                    obj.pop(key, None)   # ✅ remove completely
+                    obj.pop(key, None)
                 else:
                     obj[key] = value
-
-            # ✅ STEP 5: single write
+    
+            # ✅ SERIALIZE BEFORE WRITING
             binary = self._serialize(obj)
+    
+            # ✅ ONLY NOW WRITE (safe point)
             self.storage.append(object_id, binary)
-
-            # ✅ STEP 6: update index once
+    
+            # ✅ UPDATE INDEX AFTER SUCCESS
             self._update_index(object_id, old_obj, obj)
-
+    
+        except Exception as e:
+            # ✅ NOTHING WRITTEN → safe rollback (implicit)
+            raise e
+    
         finally:
-            # ✅ STEP 7: release lock
+            # ✅ release lock
             self.lock_manager.release(object_id, lock_key, owner)

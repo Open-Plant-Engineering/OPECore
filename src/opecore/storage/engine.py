@@ -1,6 +1,6 @@
-import struct
-import time
+import struct, os, time
 from typing import Optional, Dict
+from opecore.storage.wal import WAL
 
 
 class StorageEngine:
@@ -23,9 +23,11 @@ class StorageEngine:
 
     def __init__(self, path: str = "data.db"):
         self.path = path
+        self.wal = WAL(path)
         self.head_index: Dict[int, int] = {}  # object_id -> latest offset
         self.version_counter = 0
 
+        self._recover_from_wal()
         self._load_index()
 
     # ✅ ===============================
@@ -88,6 +90,10 @@ class StorageEngine:
         self.version_counter += 1
         version_id = self.version_counter
 
+        # ✅ STEP 1: LOG FIRST
+        self.wal.log(object_id, data)
+
+        # ✅ STEP 2: WRITE ACTUAL DATA
         with open(self.path, "ab") as f:
             offset = f.tell()
 
@@ -102,8 +108,13 @@ class StorageEngine:
 
             f.write(header)
             f.write(data)
+            f.flush()
+            os.fsync(f.fileno())  # ✅ ensure disk write
 
         self.head_index[object_id] = offset
+
+        # ✅ STEP 3: CLEAR WAL (commit complete)
+        self.wal.clear()
 
         return offset
 
@@ -223,3 +234,47 @@ class StorageEngine:
             result[object_id] = record["data"]
 
         return result
+
+    def _recover_from_wal(self):
+        entries = self.wal.read_all()
+
+        if not entries:
+            return
+
+        print("⚠ WAL RECOVERY START")
+
+        for entry in entries:
+            object_id = entry["object_id"]
+            data = entry["data"].encode()
+
+            # replay write
+            self._replay_append(object_id, data)
+
+        # clear after recovery
+        self.wal.clear()
+
+        print("✅ WAL RECOVERY COMPLETE")
+
+    def _replay_append(self, object_id: int, data: bytes):
+        timestamp = time.time()
+        parent_offset = self.head_index.get(object_id, -1)
+    
+        self.version_counter += 1
+        version_id = self.version_counter
+    
+        with open(self.path, "ab") as f:
+            offset = f.tell()
+    
+            header = struct.pack(
+                self.HEADER_FORMAT,
+                object_id,
+                version_id,
+                timestamp,
+                parent_offset,
+                len(data),
+            )
+    
+            f.write(header)
+            f.write(data)
+    
+        self.head_index[object_id] = offset
