@@ -1,5 +1,6 @@
 from typing import Dict
 from opecore.core.constants import DELETE
+import uuid, time
 
 
 class Transaction:
@@ -28,6 +29,9 @@ class Transaction:
     def update(self, object_id: int, updates: dict):
         if not self.active:
             raise Exception("Transaction is closed")
+        
+        if self.engine.is_stale(object_id):
+            raise Exception(f"Object {object_id} is stale for this node.")
 
         if object_id not in self.changes:
             self.changes[object_id] = {}
@@ -50,8 +54,10 @@ class Transaction:
         
         if self.invalidated:
             raise Exception("Transaction invalidated due to concurrent update")
-
-        import uuid, time
+        
+        for object_id in self.changes:
+            if self.engine.is_stale(object_id):
+                raise Exception(f"Object {object_id} became stale before commit.")
 
         self.txn_id = str(uuid.uuid4())
 

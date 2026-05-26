@@ -25,6 +25,7 @@ class Engine:
         self.index = IndexEngine()
         self.auth = AuthorizationPolicy()
         self.active_transactions = {}
+        self.latest_seen_version = {}
 
         self.node_id = self._load_or_create_node_id(db_path)
         
@@ -86,6 +87,10 @@ class Engine:
     # ✅ ===============================
 
     def update_object(self, object_id: int, updates: dict, actor: str, force: bool = False):
+
+        if self.is_stale(object_id):
+            raise Exception(f"Object {object_id} is stale. Refresh required.")
+        
         lock_key = "__all__"
 
         if not force:
@@ -302,17 +307,50 @@ class Engine:
         return changes
 
     def apply_remote_change(self, object_id: int, obj: dict):
-        current_version = self._get_object_version(object_id)
-    
         incoming_version = obj.get("__version", 0)
-    
-        # ✅ accept only newer changes
-        if incoming_version <= current_version:
+
+        # ✅ update node's knowledge (even if not applied)
+        self.latest_seen_version[object_id] = max(
+            incoming_version,
+            self.latest_seen_version.get(object_id, 0)
+        )
+        current_data = self.read_latest(object_id)
+
+        if current_data:
+            current_obj = self._deserialize(current_data)
+            current_version = current_obj.get("__version", 0)
+            current_ts = current_obj.get("__ts", 0)
+        else:
+            current_obj = {}
+            current_version = 0
+            current_ts = 0
+
+        incoming_version = obj.get("__version", 0)
+        incoming_ts = obj.get("__ts", 0)
+
+        # ✅ version takes priority
+        if incoming_version > current_version:
+            should_apply = True
+
+        # ✅ same version → resolve via timestamp
+        elif incoming_version == current_version and incoming_ts > current_ts:
+            should_apply = True
+
+        else:
+            should_apply = False
+
+        if not should_apply:
             return
-    
+
+        # ✅ apply incoming change
         binary = self._serialize(obj)
         self.storage.append(object_id, binary)
-    
-        old_obj = self._deserialize(self.read_latest(object_id)) if self.read_latest(object_id) else {}
-        self._update_index(object_id, old_obj, obj)
-    
+
+        # ✅ update index with proper old → new transition
+        self._update_index(object_id, current_obj, obj)
+
+    def is_stale(self, object_id: int):
+        local_version = self._get_object_version(object_id)
+        known_version = self.latest_seen_version.get(object_id, local_version)
+
+        return local_version < known_version
