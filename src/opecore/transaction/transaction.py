@@ -64,7 +64,18 @@ class Transaction:
                 snapshot_version = self.snapshot_versions[object_id]
 
                 if current_version != snapshot_version:
-                    raise Exception(f"Conflict detected on object {object_id}")
+                    # ✅ allow same actor to proceed
+                    current_data = self.engine.storage.read_latest(object_id)
+                
+                    if current_data:
+                        obj = self.engine._deserialize(current_data)
+                        owner = obj.get("claim_by")
+                    else:
+                        owner = None
+                
+                    # ❌ conflict only if different user
+                    if owner != self.actor:
+                        raise Exception(f"Conflict detected on object {object_id}")
 
                 new_obj, old_obj = self.engine._prepare_object(
                     object_id, updates, self.actor

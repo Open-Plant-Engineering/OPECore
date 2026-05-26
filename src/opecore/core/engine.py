@@ -111,6 +111,9 @@ class Engine:
         return Transaction(self, owner)
 
     def _commit_object(self, object_id, old_obj, new_obj):
+        current_version = self._get_object_version(object_id)
+        new_obj["__version"] = current_version + 1
+
         binary = self._serialize(new_obj)
         self.storage.append(object_id, binary)
 
