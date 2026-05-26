@@ -2,6 +2,7 @@ import struct
 import os
 import time
 import json
+import uuid
 from typing import Optional, Dict
 from opecore.storage.wal import WAL
 

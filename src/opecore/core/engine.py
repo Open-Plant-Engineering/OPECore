@@ -1,7 +1,8 @@
 from typing import Optional, List
 import json
 import os
-
+import time
+import uuid
 from opecore.storage.engine import StorageEngine
 from opecore.lock.persistent import PersistentLockManager
 from opecore.index.index import IndexEngine
@@ -25,6 +26,8 @@ class Engine:
         self.auth = AuthorizationPolicy()
         self.active_transactions = {}
 
+        self.node_id = self._load_or_create_node_id(db_path)
+        
         self._rebuild_index()
 
     # ✅ ===============================
@@ -95,7 +98,10 @@ class Engine:
             # ✅ inject version
             current_version = self._get_object_version(object_id)
             new_obj["__version"] = current_version + 1
-            
+            new_obj["__node_id"] = self.node_id
+            new_obj["__txn_id"] = None
+            new_obj["__ts"] = time.time()
+
             binary = self._serialize(new_obj)
             self.storage.append(object_id, binary)
             self._invalidate_transactions(object_id, actor)
@@ -114,6 +120,10 @@ class Engine:
     def _commit_object(self, object_id, old_obj, new_obj, actor):
         current_version = self._get_object_version(object_id)
         new_obj["__version"] = current_version + 1
+        new_obj["__version"] = current_version + 1
+        new_obj["__node_id"] = self.node_id
+        new_obj["__txn_id"] = getattr(self, "_current_txn_id", None)
+        new_obj["__ts"] = time.time()
 
         binary = self._serialize(new_obj)
         self.storage.append(object_id, binary)
@@ -258,3 +268,17 @@ class Engine:
         for txn in txns:
             if txn.actor != actor:
                 txn.invalidate()
+
+    def _load_or_create_node_id(self, db_path):
+        node_file = db_path + ".node"
+
+        if os.path.exists(node_file):
+            with open(node_file, "r") as f:
+                return f.read().strip()
+
+        node_id = str(uuid.uuid4())
+
+        with open(node_file, "w") as f:
+            f.write(node_id)
+
+        return node_id

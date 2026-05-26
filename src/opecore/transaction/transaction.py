@@ -66,6 +66,8 @@ class Transaction:
         try:
             prepared = []
 
+            self.engine._current_txn_id = self.txn_id
+
             # ✅ STEP 2: VALIDATION + VERSION CHECK
             for object_id, updates in self.changes.items():
 
@@ -104,7 +106,7 @@ class Transaction:
             self.engine.storage.wal.log_commit(self.txn_id)
 
             self.active = False
-
+            self.engine._current_txn_id = None
         finally:
             # ✅ release lock safely
             try:
