@@ -1,21 +1,14 @@
-import struct, os, time, json
+import struct
+import os
+import time
+import json
 from typing import Optional, Dict
 from opecore.storage.wal import WAL
-from opecore.core.constants import DELETE
+
 
 class StorageEngine:
     """
     Append-only storage engine with version chaining.
-
-    Each record:
-        [HEADER][DATA]
-
-    HEADER format:
-        object_id (Q)
-        version_id (Q)
-        timestamp (d)
-        parent_offset (q)
-        data_size (I)
     """
 
     HEADER_FORMAT = "QQdqI"
@@ -23,11 +16,14 @@ class StorageEngine:
 
     def __init__(self, path: str = "data.db"):
         self.path = path
-        self.wal = WAL(path)
-        self.head_index: Dict[int, int] = {}  # object_id -> latest offset
+
+        # ✅ WAL must be separate file
+        self.wal = WAL(path + ".wal")
+
+        self.head_index: Dict[int, int] = {}
         self.version_counter = 0
 
-        self._recover_from_wal()
+        self.recover_from_wal()
         self._load_index()
 
     # ✅ ===============================
@@ -35,11 +31,6 @@ class StorageEngine:
     # ✅ ===============================
 
     def _load_index(self):
-        """
-        Scan entire file and rebuild:
-        - head_index (latest version per object)
-        - version_counter (max version seen)
-        """
         try:
             with open(self.path, "rb") as f:
                 offset = 0
@@ -57,40 +48,29 @@ class StorageEngine:
                         size,
                     ) = struct.unpack(self.HEADER_FORMAT, header)
 
-                    # skip data
                     f.seek(size, 1)
 
-                    # update latest pointer
                     self.head_index[object_id] = offset
 
-                    # keep version monotonic
                     if version_id > self.version_counter:
                         self.version_counter = version_id
 
                     offset += self.HEADER_SIZE + size
 
         except FileNotFoundError:
-            # first run → file doesn't exist yet
             pass
 
     # ✅ ===============================
-    # WRITE (APPEND)
+    # WRITE
     # ✅ ===============================
 
     def append(self, object_id: int, data: bytes) -> int:
-        """
-        Append a new version.
-
-        Returns:
-            offset of the newly written record
-        """
         timestamp = time.time()
         parent_offset = self.head_index.get(object_id, -1)
 
         self.version_counter += 1
         version_id = self.version_counter
 
-        # ✅ STEP 2: WRITE ACTUAL DATA
         with open(self.path, "ab") as f:
             offset = f.tell()
 
@@ -106,30 +86,27 @@ class StorageEngine:
             f.write(header)
             f.write(data)
             f.flush()
-            os.fsync(f.fileno())  # ✅ ensure disk write
+            os.fsync(f.fileno())
 
         self.head_index[object_id] = offset
-
-        # ✅ STEP 3: CLEAR WAL (commit complete)
-        self.wal.clear()
-
         return offset
 
     # ✅ ===============================
-    # READ APIs
+    # READ
     # ✅ ===============================
 
     def read_latest(self, object_id: int) -> Optional[bytes]:
         offset = self.head_index.get(object_id)
+
         if offset is None:
             return None
 
-        return self._read_record(offset)["data"]
+        try:
+            return self._read_record(offset)["data"]
+        except Exception:
+            return None
 
     def read_as_of(self, object_id: int, timestamp: float) -> Optional[bytes]:
-        """
-        Return the latest version whose timestamp <= given timestamp
-        """
         offset = self.head_index.get(object_id)
 
         while offset is not None and offset != -1:
@@ -151,7 +128,6 @@ class StorageEngine:
             f.seek(offset)
 
             header = f.read(self.HEADER_SIZE)
-
             if not header:
                 raise ValueError(f"Invalid read at offset {offset}")
 
@@ -174,13 +150,10 @@ class StorageEngine:
             }
 
     # ✅ ===============================
-    # DEBUG / DEV ONLY
+    # DEBUG
     # ✅ ===============================
 
     def read_all(self):
-        """
-        Debug utility — sequential scan of all records.
-        """
         records = []
 
         try:
@@ -219,100 +192,40 @@ class StorageEngine:
             pass
 
         return records
-    
-    def read_all_latest(self) -> Dict[int, bytes]:
-        """
-        Return latest data for all objects.
-        """
-        result = {}
 
-        for object_id, offset in self.head_index.items():
-            record = self._read_record(offset)
-            result[object_id] = record["data"]
+    # ✅ ===============================
+    # WAL RECOVERY
+    # ✅ ===============================
 
-        return result
+    def recover_from_wal(self):
+        records = self.wal.read_all()
 
-    def _recover_from_wal(self):
-        entries = self.wal.read_all()
+        txn_map = {}
 
-        if not entries:
-            return
+        for rec in records:
+            txn_id = rec["txn_id"]
 
-        print("⚠ WAL RECOVERY START")
+            if txn_id not in txn_map:
+                txn_map[txn_id] = {}
 
-        for entry in entries:
-            object_id = entry["object_id"]
-            data = entry["data"].encode()
+            txn_map[txn_id][rec["state"]] = rec
 
-            # replay write
-            self._replay_append(object_id, data)
+        for txn_id, states in txn_map.items():
 
-        # clear after recovery
+            if "PREPARE" in states:
+                changes = states["PREPARE"]["changes"]
+
+                for object_id, updates in changes.items():
+                    try:
+                        obj_id = int(object_id)
+
+                        # ✅ convert dict → bytes
+                        data = json.dumps(updates).encode()
+
+                        self.append(obj_id, data)
+
+                    except Exception:
+                        pass
+
+        # ✅ Clear WAL after recovery
         self.wal.clear()
-
-        print("✅ WAL RECOVERY COMPLETE")
-
-    def _replay_append(self, object_id: int, data: bytes):
-        timestamp = time.time()
-        parent_offset = self.head_index.get(object_id, -1)
-
-        self.version_counter += 1
-        version_id = self.version_counter
-
-        with open(self.path, "ab") as f:
-            offset = f.tell()
-
-            header = struct.pack(
-                self.HEADER_FORMAT,
-                object_id,
-                version_id,
-                timestamp,
-                parent_offset,
-                len(data),
-            )
-
-            f.write(header)
-            f.write(data)
-
-        self.head_index[object_id] = offset
-
-    def _recover_from_wal(self):
-        entry = self.wal.read()
-
-        if not entry:
-            return
-
-        if entry.get("type") != "transaction":
-            return
-
-        print("⚠ WAL RECOVERY START")
-
-        changes = entry["changes"]
-
-        # ✅ replay directly (NO Engine call)
-        for obj_id_str, updates in changes.items():
-            object_id = int(obj_id_str)
-
-            # ✅ reconstruct object
-            current_data = self.read_latest(object_id)
-
-            if current_data is None:
-                obj = {}
-            else:
-                obj = json.loads(current_data.decode())
-
-
-            for key, value in updates.items():
-                if value is DELETE:
-                    obj.pop(key, None)
-                else:
-                    obj[key] = value
-
-            # ✅ write recovered version
-            binary = json.dumps(obj).encode()
-            self._replay_append(object_id, binary)
-
-        # ✅ clear WAL after recovery
-        self.wal.clear()
-
-        print("✅ WAL RECOVERY COMPLETE")

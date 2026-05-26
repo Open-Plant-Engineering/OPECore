@@ -1,30 +1,54 @@
-import json
 import os
+import json
 
 
 class WAL:
-    def __init__(self, path: str):
-        self.path = path + ".wal"
+    def __init__(self, path):
+        self.path = path
 
-    def log_transaction(self, owner: str, changes: dict):
-        entry = {
-            "type": "transaction",
-            "owner": owner,
-            "changes": changes
-        }
+        if not os.path.exists(path):
+            open(path, "a").close()
 
-        with open(self.path, "w") as f:
-            f.write(json.dumps(entry))
+    def _append(self, record):
+        with open(self.path, "a") as f:
+            f.write(json.dumps(record) + "\n")
             f.flush()
             os.fsync(f.fileno())
 
-    def read(self):
+    def log_prepare(self, txn_id, changes):
+        record = {
+            "txn_id": txn_id,
+            "state": "PREPARE",
+            "changes": changes
+        }
+        self._append(record)
+
+    def log_commit(self, txn_id):
+        record = {
+            "txn_id": txn_id,
+            "state": "COMMIT"
+        }
+        self._append(record)
+
+    # ✅ backward compatibility for tests
+    def log_transaction(self, txn_id, changes):
+        self.log_prepare(txn_id, changes)
+        self.log_commit(txn_id)
+
+    def read_all(self):
         if not os.path.exists(self.path):
-            return None
+            return []
+
+        records = []
 
         with open(self.path, "r") as f:
-            return json.loads(f.read())
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                records.append(json.loads(line))
+
+        return records
 
     def clear(self):
-        if os.path.exists(self.path):
-            os.remove(self.path)
+        open(self.path, "w").close()
