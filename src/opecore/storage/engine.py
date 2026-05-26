@@ -5,6 +5,12 @@ import json
 import uuid
 from typing import Optional, Dict
 from opecore.storage.wal import WAL
+from opecore.utils.id_generator import SnowflakeIDGenerator
+from opecore.storage.tables.string_table import StringTable
+from opecore.storage.tables.number_table import NumberTable
+from opecore.storage.tables.array_table import ArrayTable
+from opecore.storage.encoder import Encoder
+from opecore.storage.decoder import Decoder
 
 
 class StorageEngine:
@@ -26,6 +32,15 @@ class StorageEngine:
 
         self.recover_from_wal()
         self._load_index()
+        
+        self.id_gen = SnowflakeIDGenerator()
+
+        self.string_table = StringTable(self.id_gen)
+        self.number_table = NumberTable(self.id_gen)
+        self.array_table = ArrayTable(self.id_gen)
+
+        self.encoder = Encoder(self.string_table, self.number_table, self.array_table)
+        self.decoder = Decoder(self.string_table, self.number_table, self.array_table)
 
     # ✅ ===============================
     # LOAD FILE → BUILD HEAD INDEX
@@ -230,3 +245,11 @@ class StorageEngine:
 
         # ✅ Clear WAL after recovery
         self.wal.clear()
+
+    def _serialize(self, obj):
+        encoded = self.encoder.encode_object(obj)
+        return json.dumps(encoded).encode()
+
+    def _deserialize(self, data):
+        encoded = json.loads(data.decode())
+        return self.decoder.decode_object(encoded)
