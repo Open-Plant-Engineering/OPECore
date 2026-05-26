@@ -23,6 +23,7 @@ class Engine:
 
         self.index = IndexEngine()
         self.auth = AuthorizationPolicy()
+        self.active_transactions = {}
 
         self._rebuild_index()
 
@@ -97,7 +98,7 @@ class Engine:
             
             binary = self._serialize(new_obj)
             self.storage.append(object_id, binary)
-
+            self._invalidate_transactions(object_id, actor)
             self._update_index(object_id, old_obj, new_obj)
 
         finally:
@@ -110,13 +111,13 @@ class Engine:
     def begin_transaction(self, owner: str):
         return Transaction(self, owner)
 
-    def _commit_object(self, object_id, old_obj, new_obj):
+    def _commit_object(self, object_id, old_obj, new_obj, actor):
         current_version = self._get_object_version(object_id)
         new_obj["__version"] = current_version + 1
 
         binary = self._serialize(new_obj)
         self.storage.append(object_id, binary)
-
+        self._invalidate_transactions(object_id, actor)
         self._update_index(object_id, old_obj, new_obj)
 
     # ✅ ===============================
@@ -245,3 +246,15 @@ class Engine:
     def update_attribute(self, object_id, attribute, value, owner, force=False):
         self.update_object(object_id, {attribute: value}, owner, force)
     
+    def _register_txn(self, object_id, txn):
+        if object_id not in self.active_transactions:
+            self.active_transactions[object_id] = set()
+
+        self.active_transactions[object_id].add(txn)
+
+    def _invalidate_transactions(self, object_id, actor=None):
+        txns = self.active_transactions.get(object_id, set())
+
+        for txn in txns:
+            if txn.actor != actor:
+                txn.invalidate()

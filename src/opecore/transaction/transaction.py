@@ -16,6 +16,10 @@ class Transaction:
 
         self.active = True
         self.txn_id = None
+        self.invalidated = False
+
+    def invalidate(self):
+        self.invalidated = True
 
     # ✅ ===============================
     # STAGE UPDATE
@@ -31,6 +35,9 @@ class Transaction:
             # ✅ snapshot version capture
             self.snapshot_versions[object_id] = self.engine._get_object_version(object_id)
 
+            # ✅ ADD THIS (CRITICAL)
+            self.engine._register_txn(object_id, self)
+
         self.changes[object_id].update(updates)
 
     # ✅ ===============================
@@ -40,6 +47,9 @@ class Transaction:
     def commit(self):
         if not self.active:
             raise Exception("Transaction already closed")
+        
+        if self.invalidated:
+            raise Exception("Transaction invalidated due to concurrent update")
 
         import uuid, time
 
@@ -88,7 +98,7 @@ class Transaction:
 
             # ✅ STEP 4: APPLY CHANGES
             for object_id, old_obj, new_obj in prepared:
-                self.engine._commit_object(object_id, old_obj, new_obj)
+                self.engine._commit_object(object_id, old_obj, new_obj,self.actor)
 
             # ✅ STEP 5: WAL COMMIT
             self.engine.storage.wal.log_commit(self.txn_id)
