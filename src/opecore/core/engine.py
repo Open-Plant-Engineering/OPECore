@@ -282,3 +282,37 @@ class Engine:
             f.write(node_id)
 
         return node_id
+
+    def get_changes(self, since_ts: float):
+        changes = []
+
+        all_data = self.storage.read_all()
+
+        for record in all_data:
+            obj = self._deserialize(record["data"])
+
+            ts = obj.get("__ts", 0)
+
+            if ts > since_ts:
+                changes.append({
+                    "object_id": record["object_id"],
+                    "data": obj
+                })
+
+        return changes
+
+    def apply_remote_change(self, object_id: int, obj: dict):
+        current_version = self._get_object_version(object_id)
+    
+        incoming_version = obj.get("__version", 0)
+    
+        # ✅ accept only newer changes
+        if incoming_version <= current_version:
+            return
+    
+        binary = self._serialize(obj)
+        self.storage.append(object_id, binary)
+    
+        old_obj = self._deserialize(self.read_latest(object_id)) if self.read_latest(object_id) else {}
+        self._update_index(object_id, old_obj, obj)
+    
