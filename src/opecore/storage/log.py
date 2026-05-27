@@ -87,3 +87,26 @@ class FileManager:
         if self.fd and not self.fd.closed:
             self.fd.close()
 
+    def scan_records(self):
+        """
+        Iterate through all records (used for recovery / WAL).
+        MUST skip headers.
+        """
+    
+        self.fd.seek(DATA_START)
+    
+        while True:
+            pos = self.fd.tell()
+    
+            try:
+                rec = Record.decode(self.fd)
+            except Exception:
+                break  # stop on corruption / EOF
+            
+            if rec is None:
+                break
+            
+            # ✅ return LOGICAL offset
+            logical_offset = pos - DATA_START
+    
+            yield logical_offset, rec
