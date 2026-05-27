@@ -1,18 +1,30 @@
+import tempfile
+import os
+from opecore.storage.log import FileManager
 from opecore.chunk.store import ChunkStore
 
-class DummyFM:
-    def __init__(self):
-        self.data = []
 
-    def append_record(self, t, p):
-        self.data.append(p)
-        return len(self.data) - 1
+def test_chunk_put_get():
+    with tempfile.TemporaryDirectory() as tmp:
+        path = os.path.join(tmp, "test.db")
 
-def test_dedup():
-    fm = DummyFM()
-    store = ChunkStore(fm)
+        with FileManager(path) as fm:
+            store = ChunkStore(fm)
 
-    a = store.put(b"hello")
-    b = store.put(b"hello")
+            cid = store.put(b"hello")
+            data = store.get(cid)
 
-    assert a == b
+            assert data == b"hello"
+
+
+def test_chunk_dedup():
+    with tempfile.TemporaryDirectory() as tmp:
+        path = os.path.join(tmp, "test.db")
+
+        with FileManager(path) as fm:
+            store = ChunkStore(fm)
+
+            a = store.put(b"x")
+            b = store.put(b"x")
+
+            assert a == b
