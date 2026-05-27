@@ -4,7 +4,12 @@ from opecore.object.store import ObjectStore
 from opecore.index.btree import BTree
 from opecore.txn.manager import TransactionManager
 from opecore.recovery.rebuilder import RecoveryManager
+import hashlib
 
+
+def make_sec_key(field: str, value: bytes) -> int:
+    h = hashlib.sha256(field.encode() + value).digest()
+    return int.from_bytes(h[:16], "little")
 
 class Database:
     def __init__(self, path):
@@ -14,6 +19,7 @@ class Database:
         self.chunk = ChunkStore(self.fm)
         self.obj = ObjectStore(self.fm, self.chunk)
         self.index = BTree(self.fm)
+        self.sec_index = BTree(self.fm)
 
         # ✅ rebuild state
         RecoveryManager(self.fm, self.chunk, self.obj).rebuild()
@@ -35,8 +41,21 @@ class Database:
 
         obj_id = self.obj.put(fields=fields, txn_id=tid)
 
-        # ✅ primary index (object_id → object_id)
+        # ✅ primary index
         self.index.insert(obj_id, obj_id, tid)
+
+        # ✅ secondary index (MULTI-VALUE SAFE)
+        for k, v in data.items():
+            sk = make_sec_key(k, v)
+
+            existing = self.sec_index.search(sk)
+
+            if existing is None:
+                new_val = [obj_id]
+            else:
+                new_val = existing + [obj_id]
+
+            self.sec_index.insert(sk, new_val, tid)
 
         self.txn.commit(tid)
 
@@ -67,16 +86,8 @@ class Database:
 
     # ✅ SIMPLE FILTER (no secondary index yet)
     def find(self, field, value):
-        results = []
+        key = make_sec_key(field, value)
 
-        for obj_id in self.obj.index.keys():
-            obj = self.obj.get(obj_id)
+        result = self.sec_index.search(key)
 
-            for k, _, v in obj["fields"]:
-                key = self.chunk.get(k).decode()
-                val = self.chunk.get(v)
-
-                if key == field and val == value:
-                    results.append(obj_id)
-
-        return results
+        return result or []

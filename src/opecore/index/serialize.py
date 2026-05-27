@@ -1,4 +1,5 @@
 import struct
+import pickle
 from opecore.index.page import BTreePage
 
 LEAF = 1
@@ -20,7 +21,10 @@ def serialize_page(page: BTreePage) -> bytes:
 
     if page.is_leaf:
         for val in page.values:
-            buf.extend(val.to_bytes(16, "little"))
+            data = pickle.dumps(val)
+            buf.extend(len(data).to_bytes(4, "little"))
+            buf.extend(data)
+
     else:
         for child in page.children:
             buf.extend(child.to_bytes(8, "little"))  # offset
@@ -48,8 +52,11 @@ def deserialize_page(data: bytes) -> BTreePage:
 
     if is_leaf:
         for _ in range(count):
-            val = int.from_bytes(data[offset:offset+16], "little")
-            offset += 16
+            size = int.from_bytes(data[offset:offset+4], "little")
+            offset += 4
+            
+            val = pickle.loads(data[offset:offset+size])
+            offset += size
             page.values.append(val)
     else:
         for _ in range(count + 1):
