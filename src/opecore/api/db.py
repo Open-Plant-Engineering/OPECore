@@ -21,15 +21,16 @@ class Database:
         self.index = BTree(self.fm)
         self.sec_index = BTree(self.fm)
 
-        # ✅ NEW
         self.version = VersionStore()
 
-        # ✅ NEW: object_id → latest version_id
-        self.object_versions = {}
-        self.version_objects = {}
+        self.object_versions = {}   # object_id → latest version
+        self.version_objects = {}   # version_id → object_id
 
-        # ✅ rebuild state
+        # rebuild data
         RecoveryManager(self.fm, self.chunk, self.obj).rebuild()
+
+        # ✅ NEW: rebuild version metadata
+        self._rebuild_versions()
 
     def close(self):
         if self.fm:
@@ -37,36 +38,41 @@ class Database:
                 self.fm.close()
             except:
                 pass
-            
+
         self.chunk = None
         self.obj = None
         self.index = None
         self.sec_index = None
         self.version = None
+        self.object_versions = None
+        self.version_objects = None
 
         gc.collect()
 
-    # ✅ INSERT OBJECT (Versioned)
+    # ✅ INSERT
     def insert(self, data: dict):
         tid = self.txn.begin()
-
-        # ✅ create object first
-        obj_id = None
 
         fields = []
 
         for k, v in data.items():
             key_chunk = self.chunk.put(k.encode(), tid)
             val_chunk = self.chunk.put(v, tid)
-
             fields.append((key_chunk, 1, val_chunk))
 
         obj_id = self.obj.put(fields=fields, txn_id=tid)
 
         # ✅ create version
         vid = self.version.create(obj_id, parent_version=None)
+
         self.object_versions[obj_id] = vid
         self.version_objects[vid] = obj_id
+
+        # ✅ persist version metadata
+        self._persist_version_meta(tid, vid, obj_id, None)
+
+        # ✅ persist version→object mapping
+        self._persist_version_object(tid, vid, obj_id)
 
         # ✅ primary index
         self.index.insert(obj_id, obj_id, tid)
@@ -76,57 +82,106 @@ class Database:
             sk = make_sec_key(k, v)
 
             existing = self.sec_index.search(sk)
-
-            if existing is None:
-                new_val = [obj_id]
-            else:
-                new_val = existing + [obj_id]
+            new_val = [obj_id] if existing is None else existing + [obj_id]
 
             self.sec_index.insert(sk, new_val, tid)
 
         self.txn.commit(tid)
-
         return obj_id
 
-    # ✅ UPDATE OBJECT (creates new version)
+    # ✅ UPDATE
     def update(self, object_id, changes: dict):
         tid = self.txn.begin()
 
         parent = self.object_versions.get(object_id)
 
-        # ✅ build ONLY changed fields
         fields = []
+
         for k, v in changes.items():
             key_chunk = self.chunk.put(k.encode(), tid)
             val_chunk = self.chunk.put(v, tid)
             fields.append((key_chunk, 1, val_chunk))
 
-        # ✅ store delta object
         new_obj_id = self.obj.put(fields=fields, txn_id=tid)
 
-        # ✅ new version
         vid = self.version.create(object_id, parent_version=parent)
+
         self.object_versions[object_id] = vid
         self.version_objects[vid] = new_obj_id
 
-        # ✅ secondary index update
+        # ✅ persist version metadata
+        self._persist_version_meta(tid, vid, object_id, parent)
+
+        # ✅ persist version→object mapping
+        self._persist_version_object(tid, vid, new_obj_id)
+
+        # ✅ update secondary index
         for k, v in changes.items():
             sk = make_sec_key(k, v)
-
             existing = self.sec_index.search(sk)
-
-            if existing is None:
-                new_val = [object_id]
-            else:
-                new_val = existing + [object_id]
-
+            new_val = [object_id] if existing is None else existing + [object_id]
             self.sec_index.insert(sk, new_val, tid)
 
         self.txn.commit(tid)
-
         return vid
 
-    # ✅ INTERNAL RESOLVE (version chain)
+    # ✅ persist version metadata
+    def _persist_version_meta(self, tid, vid, object_id, parent):
+        parent_val = b"None" if parent is None else str(parent).encode()
+        ts = str(self.version.get(vid)["timestamp"]).encode()
+
+        fields = [
+            (self.chunk.put(b"kind", tid), 1, self.chunk.put(b"version_meta", tid)),
+            (self.chunk.put(b"version_id", tid), 1, self.chunk.put(str(vid).encode(), tid)),
+            (self.chunk.put(b"object_id", tid), 1, self.chunk.put(str(object_id).encode(), tid)),
+            (self.chunk.put(b"parent", tid), 1, self.chunk.put(parent_val, tid)),
+            (self.chunk.put(b"timestamp", tid), 1, self.chunk.put(ts, tid)),
+        ]
+
+        self.obj.put(fields=fields, txn_id=tid)
+
+    # ✅ persist version → object mapping
+    def _persist_version_object(self, tid, vid, obj_id):
+        fields = [
+            (self.chunk.put(b"kind", tid), 1, self.chunk.put(b"version_obj", tid)),
+            (self.chunk.put(b"version_id", tid), 1, self.chunk.put(str(vid).encode(), tid)),
+            (self.chunk.put(b"object_ref", tid), 1, self.chunk.put(str(obj_id).encode(), tid)),
+        ]
+
+        self.obj.put(fields=fields, txn_id=tid)
+
+    # ✅ rebuild versions from storage
+    def _rebuild_versions(self):
+        for obj_id in self.obj.index.keys():
+            obj = self.obj.get(obj_id)
+
+            data = {}
+
+            for k, _, v in obj["fields"]:
+                key = self.chunk.get(k).decode()
+                val = self.chunk.get(v).decode()
+                data[key] = val
+
+            if data.get("kind") == "version_meta":
+                vid = int(data["version_id"])
+                oid = int(data["object_id"])
+                parent = None if data["parent"] == "None" else int(data["parent"])
+                ts = int(data["timestamp"])
+
+                self.version.versions[vid] = {
+                    "node_id": oid,
+                    "parent": parent,
+                    "timestamp": ts,
+                }
+
+                self.object_versions[oid] = vid
+
+            elif data.get("kind") == "version_obj":
+                vid = int(data["version_id"])
+                oid = int(data["object_ref"])
+                self.version_objects[vid] = oid
+
+    # ✅ resolve chain
     def _resolve(self, object_id, version_id):
         result = {}
         visited = set()
@@ -153,16 +208,10 @@ class Database:
 
         return result
 
-    # ✅ GET OBJECT (latest version)
     def get(self, object_id):
         vid = self.object_versions.get(object_id)
+        return None if vid is None else self._resolve(object_id, vid)
 
-        if vid is None:
-            return None
-
-        return self._resolve(object_id, vid)
-
-    # ✅ GET AS OF (time travel)
     def get_as_of(self, object_id, timestamp):
         vid = self.object_versions.get(object_id)
 
@@ -176,10 +225,8 @@ class Database:
 
         return None
 
-    # ✅ GET VERSION LIST
     def get_versions(self, object_id):
         versions = []
-
         vid = self.object_versions.get(object_id)
 
         while vid:
@@ -189,22 +236,12 @@ class Database:
 
         return versions
 
-    # ✅ SCAN (latest state)
     def scan(self):
-        results = []
+        return [(obj_id, self.get(obj_id)) for obj_id in self.obj.index.keys()]
 
-        for obj_id in self.obj.index.keys():
-            results.append((obj_id, self.get(obj_id)))
-
-        return results
-
-    # ✅ FIND (uses secondary index)
     def find(self, field, value):
         key = make_sec_key(field, value)
-
-        result = self.sec_index.search(key)
-
-        return result or []
+        return self.sec_index.search(key) or []
 
     def compact(self):
         Compactor(self).compact()

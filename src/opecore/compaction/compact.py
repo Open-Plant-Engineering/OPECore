@@ -34,27 +34,38 @@ class Compactor:
                 # ✅ COPY LIVE OBJECTS
                 for obj_id in self.db.obj.index.keys():
                     obj = self.db.obj.get(obj_id)
-
+                
+                    # ✅ detect metadata objects
+                    is_meta = False
+                    for k, _, v in obj["fields"]:
+                        key = self.db.chunk.get(k).decode()
+                        val = self.db.chunk.get(v).decode()
+                
+                        if key == "kind" and val in ("version_meta", "version_obj"):
+                            is_meta = True
+                            break
+                        
+                    # ✅ SKIP metadata during compaction
+                    if is_meta:
+                        continue
+                    
+                    # ✅ NORMAL OBJECT COPY
                     new_fields = []
-
+                
                     for k, typ, v in obj["fields"]:
                         key_data = self.db.chunk.get(k)
                         val_data = self.db.chunk.get(v)
-
+                
                         new_k = new_chunk.put(key_data, tid)
                         new_v = new_chunk.put(val_data, tid)
-
+                
                         new_fields.append((new_k, typ, new_v))
-
-                    new_obj_id = new_obj.put(
-                        fields=new_fields,
-                        txn_id=tid
-                    )
-
-                    # ✅ preserve original object_id mapping
+                
+                    new_obj_id = new_obj.put(fields=new_fields, txn_id=tid)
+                
+                    # ✅ preserve mapping
                     new_obj.index[obj_id] = new_obj.index.pop(new_obj_id)
-
-                    # ✅ PRIMARY INDEX
+                
                     new_index.insert(obj_id, obj_id, tid)
 
                 txn.commit(tid)
