@@ -167,3 +167,32 @@ class BTree:
         right_offset = self._write(right, txn_id)
 
         return left_offset, promoted, right_offset
+
+    def range(self, start, end, offset=None, results=None):
+        if results is None:
+            results = []
+    
+        if offset is None:
+            offset = self.root_offset
+    
+        if offset is None:
+            return results
+    
+        page = self._read(offset)
+    
+        if page.is_leaf:
+            for k, v in zip(page.keys, page.values):
+                if start <= k <= end:
+                    results.append(v)
+            return results
+    
+        # internal node – traverse relevant children
+        i = 0
+        while i < len(page.keys) and start >= page.keys[i]:
+            i += 1
+    
+        # traverse from i onward (could overlap multiple ranges)
+        for j in range(i, len(page.children)):
+            self.range(start, end, page.children[j], results)
+    
+        return results

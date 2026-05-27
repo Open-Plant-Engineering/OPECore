@@ -4,12 +4,10 @@ from opecore.object.store import ObjectStore
 from opecore.index.btree import BTree
 from opecore.txn.manager import TransactionManager
 from opecore.recovery.rebuilder import RecoveryManager
-import hashlib
+from opecore.compaction.compact import Compactor
+from opecore.util.hash import make_sec_key
+import gc
 
-
-def make_sec_key(field: str, value: bytes) -> int:
-    h = hashlib.sha256(field.encode() + value).digest()
-    return int.from_bytes(h[:16], "little")
 
 class Database:
     def __init__(self, path):
@@ -25,7 +23,9 @@ class Database:
         RecoveryManager(self.fm, self.chunk, self.obj).rebuild()
 
     def close(self):
-        self.fm.close()
+        if self.fm:
+            self.fm.close()
+        gc.collect()
 
     # ✅ INSERT OBJECT
     def insert(self, data: dict):
@@ -91,3 +91,9 @@ class Database:
         result = self.sec_index.search(key)
 
         return result or []
+    
+    def compact(self):
+        Compactor(self).compact()
+
+    def range(self, start_id, end_id):
+        return self.index.range(start_id, end_id)
