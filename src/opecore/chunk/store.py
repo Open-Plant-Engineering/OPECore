@@ -1,4 +1,6 @@
 import hashlib
+from opecore.cache.lru import LRUCache
+
 
 CHUNK_RECORD = 1
 
@@ -7,6 +9,7 @@ class ChunkStore:
     def __init__(self, file_manager):
         self.fm = file_manager
         self.index = {}  # chunk_id → offset
+        self.cache = LRUCache(10000)
 
     def put(self, data: bytes, txn_id: int):
         chunk_id = hashlib.sha256(data).digest()
@@ -22,14 +25,19 @@ class ChunkStore:
         return chunk_id
 
     def get(self, chunk_id: bytes):
-        offset = self.index[chunk_id]
+        cached = self.cache.get(chunk_id)
+        if cached:
+            return cached
 
-        rtype, txn_id, payload = self.fm.read_txn_record(offset)
+        offset = self.index[chunk_id]
+        _, _, payload = self.fm.read_txn_record(offset)
 
         stored_id = payload[:32]
         data = payload[32:]
 
         if stored_id != chunk_id:
             raise ValueError("Chunk integrity error")
+
+        self.cache.put(chunk_id, data)
 
         return data

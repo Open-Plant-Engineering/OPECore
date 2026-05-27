@@ -1,6 +1,8 @@
 from opecore.storage.log import FileManager
 from opecore.index.page import BTreePage
 from opecore.index.serialize import serialize_page, deserialize_page
+from opecore.cache.lru import LRUCache
+
 
 INDEX_PAGE = 5
 MAX_KEYS = 4
@@ -10,14 +12,28 @@ class BTree:
     def __init__(self, fm: FileManager):
         self.fm = fm
         self.root_offset = fm.header.root_offset or None
+        self.page_cache = LRUCache(5000)
 
     def _write(self, page, txn_id):
         data = serialize_page(page)
-        return self.fm.append_txn_record(INDEX_PAGE, txn_id, data)
+        offset = self.fm.append_txn_record(INDEX_PAGE, txn_id, data)
+
+        # ✅ cache the new page immediately
+        self.page_cache.put(offset, page)
+
+        return offset
 
     def _read(self, offset):
+        cached = self.page_cache.get(offset)
+        if cached:
+            return cached
+
         _, _, payload = self.fm.read_txn_record(offset)
-        return deserialize_page(payload)
+        page = deserialize_page(payload)
+
+        self.page_cache.put(offset, page)
+
+        return page
 
     # 🔍 SEARCH (correct)
     def search(self, key, offset=None):

@@ -3,6 +3,8 @@ from opecore.chunk.store import ChunkStore
 from opecore.object.encoder import encode_object
 from opecore.object.model import decode_object
 from opecore.id.snowflake import SnowflakeGenerator
+from opecore.cache.lru import LRUCache
+
 
 OBJECT_RECORD = 2
 
@@ -14,6 +16,7 @@ class ObjectStore:
         self.id_gen = SnowflakeGenerator(db_id)
 
         self.index = {}  # object_id → offset
+        self.cache = LRUCache(5000)
 
     def put(self, *, fields, txn_id, parent_id=None):
         object_id = self.id_gen.generate()
@@ -33,13 +36,18 @@ class ObjectStore:
         return object_id
 
     def get(self, object_id):
-        offset = self.index[object_id]
+        cached = self.cache.get(object_id)
+        if cached:
+            return cached
 
-        rtype, txn_id, payload = self.fm.read_txn_record(offset)
+        offset = self.index[object_id]
+        _, _, payload = self.fm.read_txn_record(offset)
 
         obj = decode_object(payload)
 
         if obj["object_id"] != object_id:
             raise ValueError("Object mismatch")
+
+        self.cache.put(object_id, obj)
 
         return obj

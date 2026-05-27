@@ -1,6 +1,7 @@
 import os
 from opecore.storage.record import Record
 from opecore.storage.header import Header, HEADER_SIZE
+from opecore.cache.lru import LRUCache
 
 DATA_START = HEADER_SIZE * 2
 
@@ -19,6 +20,7 @@ class FileManager:
 
         # load header
         self.header = self._load_header()
+        self.record_cache = LRUCache(10000)
 
     # ✅ context manager
     def __enter__(self):
@@ -77,11 +79,18 @@ class FileManager:
         return logical_offset
 
     def read_at(self, offset):
-        # ✅ convert logical → physical
+        cached = self.record_cache.get(offset)
+        if cached:
+            return cached
+
         physical = offset + DATA_START
     
         self.fd.seek(physical)
-        return Record.decode(self.fd)
+        record = Record.decode(self.fd)
+
+        self.record_cache.put(offset, record)
+
+        return record
 
     def close(self):
         if self.fd and not self.fd.closed:
