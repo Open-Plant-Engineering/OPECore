@@ -1,50 +1,89 @@
 import os
 from opecore.storage.record import Record
+from opecore.storage.header import Header, HEADER_SIZE
 
+DATA_START = HEADER_SIZE * 2
 
 class FileManager:
     def __init__(self, path):
         self.path = path
 
-        # Ensure file exists
         if not os.path.exists(path):
-            open(path, "wb").close()
+            with open(path, "wb") as f:
+                # initialize double headers
+                empty = Header().encode()
+                f.write(empty)
+                f.write(empty)
 
-        # Open in read+write binary mode
         self.fd = open(path, "r+b")
 
-    # ✅ Context manager support
+        # load header
+        self.header = self._load_header()
+
+    # ✅ context manager
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc, tb):
         self.close()
 
+    def _load_header(self):
+        self.fd.seek(0)
+
+        h1_data = self.fd.read(HEADER_SIZE)
+        h2_data = self.fd.read(HEADER_SIZE)
+
+        h1 = Header.decode(h1_data)
+        h2 = Header.decode(h2_data)
+
+        if h1 and h2:
+            return h1 if h1.txn_id >= h2.txn_id else h2
+        return h1 or h2 or Header()
+
+    def _write_header(self, new_header: Header):
+        # alternate header slots
+        offset = 0 if new_header.txn_id % 2 == 0 else HEADER_SIZE
+
+        self.fd.seek(offset)
+        self.fd.write(new_header.encode())
+        self.fd.flush()
+        os.fsync(self.fd.fileno())
+
+    def update_root(self, root_offset):
+        new_txn = self.header.txn_id + 1
+
+        new_header = Header(
+            root_offset=root_offset,
+            version=self.header.version,
+            txn_id=new_txn,
+        )
+
+        self._write_header(new_header)
+        self.header = new_header
+
     def append_record(self, rtype, payload):
         self.fd.seek(0, os.SEEK_END)
-        offset = self.fd.tell()
+
+        file_offset = self.fd.tell()
+
+        # ✅ logical offset = exclude headers
+        logical_offset = file_offset - DATA_START
 
         data = Record.encode(rtype, payload)
         self.fd.write(data)
         self.fd.flush()
         os.fsync(self.fd.fileno())
 
-        return offset
+        return logical_offset
 
     def read_at(self, offset):
-        self.fd.seek(offset)
+        # ✅ convert logical → physical
+        physical = offset + DATA_START
+    
+        self.fd.seek(physical)
         return Record.decode(self.fd)
-
-    def scan_records(self):
-        self.fd.seek(0)
-        while True:
-            pos = self.fd.tell()
-            rec = Record.decode(self.fd)
-            if rec is None:
-                break
-            yield pos, rec
 
     def close(self):
         if self.fd and not self.fd.closed:
             self.fd.close()
-        
+

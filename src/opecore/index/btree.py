@@ -1,7 +1,6 @@
 from opecore.storage.log import FileManager
 from opecore.index.page import BTreePage
 from opecore.index.serialize import serialize_page, deserialize_page
-from opecore.meta.root import RootIndex
 
 INDEX_PAGE = 5
 MAX_KEYS = 4
@@ -10,8 +9,7 @@ MAX_KEYS = 4
 class BTree:
     def __init__(self, fm: FileManager):
         self.fm = fm
-        self.meta = RootIndex(fm)
-        self.root_offset = self.meta.load_latest_root()
+        self.root_offset = fm.header.root_offset or None
 
     def _write(self, page: BTreePage):
         return self.fm.append_record(INDEX_PAGE, serialize_page(page))
@@ -24,6 +22,9 @@ class BTree:
     def search(self, key, offset=None):
         if offset is None:
             offset = self.root_offset
+        
+        if offset is None:
+            return None
 
         page = self._read(offset)
 
@@ -61,7 +62,7 @@ class BTree:
         else:
             self.root_offset = new_offset
 
-        self.meta.write_root(self.root_offset)
+        self.fm.update_root(self.root_offset)
 
     # 🔁 recursive insert
     def _insert(self, offset, key, value):
