@@ -6,16 +6,15 @@ from opecore.v1.storage.chunk_store import ChunkStore
 from opecore.v1.storage.object_store import ObjectStore
 
 
-class DummyID:
-    def __init__(self):
-        self.i = 1
-
-    def generate(self):
-        self.i += 1
-        return self.i
-
-
 def test_object_put_get():
+    class DummyID:
+        def __init__(self):
+            self.i = 1
+
+        def generate(self):
+            self.i += 1
+            return self.i
+        
     with tempfile.TemporaryDirectory() as tmp:
         path = os.path.join(tmp, "test.db")
 
@@ -42,6 +41,14 @@ def test_object_put_get():
 
 
 def test_object_not_found():
+    class DummyID:
+        def __init__(self):
+            self.i = 1
+
+        def generate(self):
+            self.i += 1
+            return self.i
+        
     with tempfile.TemporaryDirectory() as tmp:
         path = os.path.join(tmp, "test.db")
 
