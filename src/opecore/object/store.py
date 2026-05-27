@@ -15,27 +15,27 @@ class ObjectStore:
 
         self.index = {}  # object_id → offset
 
-    def put(self, *, fields, parent_id=None):
+    def put(self, *, fields, txn_id, parent_id=None):
         object_id = self.id_gen.generate()
-        ts = self.id_gen.decode(object_id)["timestamp"]
-        node_id = self.id_gen.decode(object_id)["node_id"]
+        ts_info = self.id_gen.decode(object_id)
 
         encoded, _ = encode_object(
             object_id=object_id,
             parent_id=parent_id,
             fields=fields,
-            timestamp=ts,
-            node_id=node_id,
+            timestamp=ts_info["timestamp"],
+            node_id=ts_info["node_id"],
         )
 
-        offset = self.fm.append_record(OBJECT_RECORD, encoded)
+        offset = self.fm.append_txn_record(2, txn_id, encoded)
         self.index[object_id] = offset
 
         return object_id
 
     def get(self, object_id):
         offset = self.index[object_id]
-        _, payload = self.fm.read_at(offset)
+
+        rtype, txn_id, payload = self.fm.read_txn_record(offset)
 
         obj = decode_object(payload)
 

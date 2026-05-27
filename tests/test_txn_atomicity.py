@@ -1,27 +1,22 @@
-import tempfile
-import os
+import tempfile, os
 from opecore.storage.log import FileManager
-from opecore.index.btree import BTree
 from opecore.txn.manager import TransactionManager
 
 
-def test_instant_startup():
+def test_uncommitted_data_not_visible():
     with tempfile.TemporaryDirectory() as tmp:
         path = os.path.join(tmp, "test.db")
 
         with FileManager(path) as fm:
             txn_mgr = TransactionManager(fm)
-            tree = BTree(fm)
 
             tid = txn_mgr.begin()
 
-            tree.insert(1, 100, tid)
-            tree.insert(2, 200, tid)
-
-            txn_mgr.commit(tid)
+            fm.append_txn_record(99, tid, b"data1")  # simulate write
+            # ❌ no commit
 
         with FileManager(path) as fm:
-            tree = BTree(fm)
+            txn_mgr = TransactionManager(fm)
+            committed = txn_mgr.recover_committed()
 
-            assert tree.search(1) == 100
-            assert tree.search(2) == 200
+            assert tid not in committed

@@ -29,7 +29,7 @@ class TransactionManager:
         committed = set()
 
         for _, (rtype, payload) in self.fm.scan_records():
-            txn_id = struct.unpack("<Q", payload)[0]
+            txn_id = struct.unpack("<Q", payload[:8])[0]
 
             if rtype == TXN_BEGIN:
                 begun.add(txn_id)

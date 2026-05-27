@@ -92,21 +92,33 @@ class FileManager:
         Iterate through all records (used for recovery / WAL).
         MUST skip headers.
         """
-    
+
         self.fd.seek(DATA_START)
-    
+
         while True:
             pos = self.fd.tell()
-    
+
             try:
                 rec = Record.decode(self.fd)
             except Exception:
                 break  # stop on corruption / EOF
-            
+
             if rec is None:
                 break
-            
+
             # ✅ return LOGICAL offset
             logical_offset = pos - DATA_START
-    
+
             yield logical_offset, rec
+
+    def append_txn_record(self, rtype, txn_id, payload):
+        full_payload = txn_id.to_bytes(8, "little") + payload
+        return self.append_record(rtype, full_payload)
+    
+    def read_txn_record(self, offset):
+        rtype, payload = self.read_at(offset)
+
+        txn_id = int.from_bytes(payload[:8], "little")
+        data = payload[8:]
+
+        return rtype, txn_id, data
