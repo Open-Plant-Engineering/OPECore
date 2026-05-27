@@ -4,6 +4,7 @@ from opecore.v1.storage.object_store import ObjectStore
 from opecore.v1.storage.txn_manager import TransactionManager
 from opecore.v1.storage.recovery_manager import RecoveryManager
 from opecore.v1.storage.btree import BTree
+from opecore.v1.storage.secondary_index import SecondaryIndex
 
 from opecore.v1.domain.id_generator import SnowflakeIDGenerator
 from opecore.v1.domain.version_manager import VersionManager
@@ -31,6 +32,7 @@ class Database:
 
         # ✅ domain
         self.vm = VersionManager()
+        self.sec_index = SecondaryIndex(BTree(self.fm))
 
         # ✅ recovery
         self._recover()
@@ -64,10 +66,16 @@ class Database:
             v_chunk = self.chunk.put(v, tid)
             fields.append((k_chunk, 1, v_chunk))
 
+        # ✅ FIRST create object
         obj_id = self.obj.put(fields, txn_id=tid)
 
+        # ✅ version
         vid = self.vm.create(obj_id, None, obj_id)
         self._persist_version(tid, vid, obj_id, None, obj_id)
+
+        # ✅ NOW safe to index
+        for k, v in data.items():
+            self.sec_index.add(k, v, obj_id, tid)
 
         self.index.insert(obj_id, obj_id, tid)
 
@@ -95,6 +103,9 @@ class Database:
 
         vid = self.vm.create(object_id, parent, new_obj)
         self._persist_version(tid, vid, object_id, parent, new_obj)
+
+        for k, v in changes.items():
+            self.sec_index.add(k, v, object_id, tid)
 
         self.txn.commit(tid)
 
@@ -183,4 +194,7 @@ class Database:
                 self.vm.parents[vid] = parent
                 self.vm.version_objects[vid] = phys
                 self.vm.object_versions[oid] = vid
+
+    def find(self, field, value):
+        return self.sec_index.find(field, value)
     
