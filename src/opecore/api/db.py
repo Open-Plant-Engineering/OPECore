@@ -1,26 +1,27 @@
 from opecore.storage.engine.storage_engine import StorageEngine
 from opecore.util.hash import make_sec_key
-from opecore.version.store import VersionStore
+from opecore.domain.versioning.version_manager import VersionManager
 
 
 class Database:
     def __init__(self, path):
         self.storage = StorageEngine(path)
-
-        self.version = VersionStore()
-
-        self.object_versions = {}
-        self.version_objects = {}
+        self.vm = VersionManager()
 
         self._rebuild_versions()
+
+    # ✅ ensure file gets closed (fixes Windows PermissionError)
+    def __del__(self):
+        try:
+            self.close()
+        except:
+            pass
 
     def close(self):
         if self.storage:
             self.storage.close()
 
-        self.version = None
-        self.object_versions = None
-        self.version_objects = None
+        self.vm = None
 
     # ✅ INSERT
     def insert(self, data: dict):
@@ -35,10 +36,8 @@ class Database:
 
         obj_id = self.storage.obj.put(fields=fields, txn_id=tid)
 
-        vid = self.version.create(obj_id, parent_version=None)
-
-        self.object_versions[obj_id] = vid
-        self.version_objects[vid] = obj_id
+        # ✅ version manager handles version creation
+        vid = self.vm.create_version(obj_id, None, obj_id)
 
         self._persist_version_meta(tid, vid, obj_id, None)
         self._persist_version_object(tid, vid, obj_id)
@@ -58,7 +57,7 @@ class Database:
     def update(self, object_id, changes: dict):
         tid = self.storage.txn.begin()
 
-        parent = self.object_versions.get(object_id)
+        parent = self.vm.get_latest(object_id)
 
         fields = []
 
@@ -69,10 +68,7 @@ class Database:
 
         new_obj_id = self.storage.obj.put(fields=fields, txn_id=tid)
 
-        vid = self.version.create(object_id, parent_version=parent)
-
-        self.object_versions[object_id] = vid
-        self.version_objects[vid] = new_obj_id
+        vid = self.vm.create_version(object_id, parent, new_obj_id)
 
         self._persist_version_meta(tid, vid, object_id, parent)
         self._persist_version_object(tid, vid, new_obj_id)
@@ -86,9 +82,10 @@ class Database:
         self.storage.txn.commit(tid)
         return vid
 
+    # ✅ persist version metadata
     def _persist_version_meta(self, tid, vid, object_id, parent):
         parent_val = b"None" if parent is None else str(parent).encode()
-        ts = str(self.version.get(vid)["timestamp"]).encode()
+        ts = str(self.vm.version.get(vid)["timestamp"]).encode()
 
         fields = [
             (self.storage.chunk.put(b"kind", tid), 1, self.storage.chunk.put(b"version_meta", tid)),
@@ -100,6 +97,7 @@ class Database:
 
         self.storage.obj.put(fields=fields, txn_id=tid)
 
+    # ✅ persist version → object mapping
     def _persist_version_object(self, tid, vid, obj_id):
         fields = [
             (self.storage.chunk.put(b"kind", tid), 1, self.storage.chunk.put(b"version_obj", tid)),
@@ -109,6 +107,7 @@ class Database:
 
         self.storage.obj.put(fields=fields, txn_id=tid)
 
+    # ✅ rebuild versions from storage
     def _rebuild_versions(self):
         for obj_id in self.storage.obj.index.keys():
             obj = self.storage.obj.get(obj_id)
@@ -126,79 +125,42 @@ class Database:
                 parent = None if data["parent"] == "None" else int(data["parent"])
                 ts = int(data["timestamp"])
 
-                self.version.versions[vid] = {
+                self.vm.version.versions[vid] = {
                     "node_id": oid,
                     "parent": parent,
                     "timestamp": ts,
                 }
 
-                self.object_versions[oid] = vid
+                self.vm.object_versions[oid] = vid
 
             elif data.get("kind") == "version_obj":
                 vid = int(data["version_id"])
                 oid = int(data["object_ref"])
-                self.version_objects[vid] = oid
 
+                self.vm.version_objects[vid] = oid
+
+    # ✅ GET
     def get(self, object_id):
-        vid = self.object_versions.get(object_id)
-        return None if vid is None else self._resolve(object_id, vid)
+        vid = self.vm.get_latest(object_id)
+        return None if vid is None else self.vm.resolve(self.storage, object_id, vid)
 
-    def _resolve(self, object_id, version_id):
-        result = {}
-        visited = set()
-
-        while version_id:
-            if version_id in visited:
-                break
-            visited.add(version_id)
-
-            obj_id = self.version_objects.get(version_id)
-
-            if obj_id:
-                obj = self.storage.obj.get(obj_id)
-
-                for k, _, v in obj["fields"]:
-                    key = self.storage.chunk.get(k).decode()
-                    val = self.storage.chunk.get(v)
-
-                    if key not in result:
-                        result[key] = val
-
-            meta = self.version.get(version_id)
-            version_id = meta["parent"] if meta else None
-
-        return result
-
+    # ✅ FIND
     def find(self, field, value):
         key = make_sec_key(field, value)
         return self.storage.sec_index.search(key) or []
 
-    def compact(self):
-        return
-
-    def get_versions(self, object_id):
-        versions = []
-        vid = self.object_versions.get(object_id)
-
-        while vid:
-            versions.append(vid)
-            meta = self.version.get(vid)
-            vid = meta["parent"] if meta else None
-
-        return versions
-
-    def get_as_of(self, object_id, timestamp):
-        vid = self.object_versions.get(object_id)
-
-        while vid:
-            meta = self.version.get(vid)
-
-            if meta and meta["timestamp"] <= timestamp:
-                return self._resolve(object_id, vid)
-
-            vid = meta["parent"] if meta else None
-
-        return None
-
+    # ✅ RANGE
     def range(self, start_id, end_id):
         return self.storage.index.range(start_id, end_id)
+
+    # ✅ VERSION HISTORY
+    def get_versions(self, object_id):
+        return self.vm.get_versions(object_id)
+
+    # ✅ TIME TRAVEL
+    def get_as_of(self, object_id, timestamp):
+        return self.vm.get_as_of(self.storage, object_id, timestamp)
+
+    # ✅ TEMP: compaction disabled
+    def compact(self):
+        return

@@ -20,7 +20,16 @@ class StorageEngine:
         self.sec_index = BTree(self.fm)
 
         # ✅ rebuild from WAL
+        self._recover()
+
+    def _recover(self):
         RecoveryManager(self.fm, self.chunk, self.obj).rebuild()
+
+    def begin(self):
+        return self.txn.begin()
+
+    def commit(self, tid):
+        self.txn.commit(tid)
 
     def close(self):
         if self.fm:

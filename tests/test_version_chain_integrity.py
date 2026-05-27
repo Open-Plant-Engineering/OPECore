@@ -11,16 +11,19 @@ def test_basic_versioning():
 
         oid = db.insert({"a": b"1"})
 
-        v1 = db.object_versions[oid]
+        versions = db.get_versions(oid)
+        v1 = versions[-1]
 
         db.update(oid, {"a": b"2"})
-        v2 = db.object_versions[oid]
+        db.update(oid, {"a": b"3"})
 
-        assert v2 != v1
+        versions = db.get_versions(oid)
 
-        meta = db.version.get(v2)
-        assert meta["parent"] == v1
+        assert len(versions) == 3
+        assert versions[0] != versions[1] != versions[2]
 
+        data = db.get(oid)
+        assert data["a"] == b"3"
+
+        # ✅ CRITICAL FIX
         db.close()
-
-
