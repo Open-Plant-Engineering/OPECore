@@ -27,3 +27,35 @@ def test_create_node_flow(tmp_path):
 
     assert len(nodes) == 1
     assert nodes[0].name == "zone1"
+
+
+def test_update_node_flow(tmp_path):
+    wal = WALQueue(str(tmp_path / "wal"))
+    db = JsonDB(str(tmp_path / "main.db"))
+    worker = LeaderWorker(wal, db)
+
+    # Create
+    work = wal.create_work()
+    wal.submit(work, {
+        "action": "create",
+        "name": "a",
+        "type": "x"
+    })
+
+    worker.process_once()
+
+    node = db.list_nodes()[0]
+
+    # Update
+    work = wal.create_work()
+    wal.submit(work, {
+        "action": "update",
+        "refno": node.refno,
+        "name": "updated"
+    })
+
+    worker.process_once()
+
+    updated = db.get_node(node.refno)
+
+    assert updated.name == "updated"
