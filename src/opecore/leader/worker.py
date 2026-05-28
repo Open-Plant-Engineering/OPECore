@@ -1,26 +1,12 @@
 import json
-import time
 
 
 class LeaderWorker:
-    def __init__(self, log, queue, claims, leader, idempotency, state_store=None):
-        self.log = log
+    def __init__(self, queue, db):
         self.queue = queue
-        self.claims = claims
-        self.leader = leader
-        self.idempotency = idempotency
-        self.state_store = state_store
-
-        # ✅ recover stuck files on startup
-        self.queue.recover_stuck()
+        self.db = db
 
     def process_once(self):
-        """
-        Process one batch of requests
-        """
-        if not self.leader.is_leader():
-            return
-
         files = self.queue.list_requests()
 
         for fname in files:
@@ -30,19 +16,9 @@ class LeaderWorker:
                 with open(path, "r") as f:
                     req = json.load(f)
 
-                request_id = req.get("request_id")
-
-                # ✅ Skip duplicate execution
-                if request_id and self.idempotency.is_processed(request_id):
-                    self.queue.mark_done(path)
-                    continue
-
                 ok = self.handle(req)
 
                 if ok:
-                    if request_id:
-                        self.idempotency.mark_processed(request_id)
-
                     self.queue.mark_done(path)
                 else:
                     self.queue.mark_failed(path)
@@ -50,62 +26,37 @@ class LeaderWorker:
             except Exception as e:
                 print("Worker error:", e)
 
-    def loop(self):
-        while True:
-            if self.leader.is_leader():
-                self.leader.heartbeat()  # ✅ keep lease alive
-                self.process_once()
-
-            time.sleep(0.5)
-
-    def handle(self, req: dict) -> bool:
+    def handle(self, req):
         action = req.get("action")
 
-        if action == "claim":
-            return self.claims.claim(
-                req["user"],
-                req["path"],
-                req["type"]
+        # ✅ CREATE NODE
+        if action == "create":
+            from opecore.model.node import Node
+
+            node = Node(
+                name=req["name"],
+                node_type=req["type"],
+                owner=req.get("owner")
             )
 
-        elif action == "release":
-            self.claims.release(
-                req["user"],
-                req["path"]
-            )
+            self.db.create_node(node)
             return True
 
-        elif action == "set":
-            entry = {
-                "op": "SET",
-                "path": req["path"],
-                "value": req["value"]
-            }
+        # ✅ UPDATE NODE
+        if action == "update":
+            node = self.db.get_node(req["refno"])
+            if not node:
+                return False
 
-            data = json.dumps(entry).encode()
+            node.name = req.get("name", node.name)
+            node.attributes.update(req.get("attributes", {}))
 
-            # ✅ write to log
-            self.log.append(data)
-
-            # ✅ update in-memory state instantly
-            if self.state_store:
-                self.state_store.apply_record(data)
-
+            self.db.update_node(node)
             return True
-        
-        elif action == "delete":
-            entry = {
-                "op": "DELETE",
-                "path": req["path"]
-            }
 
-            data = json.dumps(entry).encode()
-
-            self.log.append(data)
-
-            if self.state_store:
-                self.state_store.apply_record(data)
-
+        # ✅ DELETE NODE
+        if action == "delete":
+            self.db.delete_node(req["refno"])
             return True
 
         return False
