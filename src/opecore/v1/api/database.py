@@ -9,6 +9,8 @@ from opecore.v1.storage.secondary_index import SecondaryIndex
 from opecore.v1.domain.id_generator import SnowflakeIDGenerator
 from opecore.v1.domain.version_manager import VersionManager
 
+from opecore.v1.api.query_engine import QueryEngine
+
 
 class Database:
     """
@@ -34,8 +36,13 @@ class Database:
         self.vm = VersionManager()
         self.sec_index = SecondaryIndex(BTree(self.fm))
 
+        self.query_engine = QueryEngine(self)
+
         # ✅ recovery
         self._recover()
+
+    def query(self, q: dict):
+        return self.query_engine.query(q)
 
     # ------------------------
     # LIFECYCLE
