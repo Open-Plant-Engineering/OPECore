@@ -74,9 +74,21 @@ class LeaderWorker:
             )
             return True
 
-        elif action == "append":
-            data = json.dumps(req["data"]).encode()
-            self.log.append(data)
+        elif action == "set":
+            entry = {
+                "op": "SET",
+                "path": req["path"],
+                "value": req["value"]
+            }
+            self.log.append(json.dumps(entry).encode())
+            return True
+        
+        elif action == "delete":
+            entry = {
+                "op": "DELETE",
+                "path": req["path"]
+            }
+            self.log.append(json.dumps(entry).encode())
             return True
 
         return False

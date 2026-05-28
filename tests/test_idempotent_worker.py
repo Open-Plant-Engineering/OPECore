@@ -22,15 +22,17 @@ def test_no_duplicate_execution(tmp_path):
     rid = "fixed-id-1"
     
     queue.submit({
-        "action": "append",
-        "data": {"x": 1},
+        "action": "set",
+        "path": "/test",
+        "value": {"x": 1},
         "request_id": rid
     })
     
     # simulate duplicate request with SAME ID
     queue.submit({
-        "action": "append",
-        "data": {"x": 1},
+        "action": "set",
+        "path": "/test",
+        "value": {"x": 1},
         "request_id": rid
     })
 

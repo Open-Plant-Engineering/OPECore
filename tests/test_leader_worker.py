@@ -47,9 +47,13 @@ def test_leader_append(tmp_path):
     idem = IdempotencyStore(str(db))
     worker = LeaderWorker(log, queue, claims, leader, idem)
 
+    rid = "test-id-123"
+
     queue.submit({
-        "action": "append",
-        "data": {"x": 10}
+        "action": "set",
+        "path": "/test",
+        "value": {"x": 1},
+        "request_id": rid
     })
 
     worker.process_once()
@@ -81,14 +85,16 @@ def test_same_request_id_only_executes_once(tmp_path):
     rid = "test-id-123"
 
     queue.submit({
-        "action": "append",
-        "data": {"x": 1},
+        "action": "set",
+        "path": "/test",
+        "value": {"x": 1},
         "request_id": rid
     })
 
     queue.submit({
-        "action": "append",
-        "data": {"x": 1},
+        "action": "set",
+        "path": "/test",
+        "value": {"x": 1},
         "request_id": rid
     })
 
