@@ -3,12 +3,13 @@ import time
 
 
 class LeaderWorker:
-    def __init__(self, log, queue, claims, leader, idempotency):
+    def __init__(self, log, queue, claims, leader, idempotency, state_store=None):
         self.log = log
         self.queue = queue
         self.claims = claims
         self.leader = leader
         self.idempotency = idempotency
+        self.state_store = state_store
 
         # ✅ recover stuck files on startup
         self.queue.recover_stuck()
@@ -80,7 +81,16 @@ class LeaderWorker:
                 "path": req["path"],
                 "value": req["value"]
             }
-            self.log.append(json.dumps(entry).encode())
+
+            data = json.dumps(entry).encode()
+
+            # ✅ write to log
+            self.log.append(data)
+
+            # ✅ update in-memory state instantly
+            if self.state_store:
+                self.state_store.apply_record(data)
+
             return True
         
         elif action == "delete":
@@ -88,7 +98,14 @@ class LeaderWorker:
                 "op": "DELETE",
                 "path": req["path"]
             }
-            self.log.append(json.dumps(entry).encode())
+
+            data = json.dumps(entry).encode()
+
+            self.log.append(data)
+
+            if self.state_store:
+                self.state_store.apply_record(data)
+
             return True
 
         return False
