@@ -246,3 +246,36 @@ def test_complex_query():
         assert res == [oid1]
 
         db.close()
+
+def test_projection():
+    with tempfile.TemporaryDirectory() as tmp:
+        db = Database(os.path.join(tmp, "test.db"))
+
+        db.insert({"name": b"A", "type": b"X"})
+
+        res = db.query({
+            "filter": {"name": {"eq": b"A"}},
+            "select": ["name"]
+        })
+
+        assert res[0] == {"name": b"A"}
+
+        db.close()
+
+
+def test_pagination():
+    with tempfile.TemporaryDirectory() as tmp:
+        db = Database(os.path.join(tmp, "test.db"))
+
+        for i in range(5):
+            db.insert({"name": str(i).encode()})
+
+        res = db.query({
+            "filter": {},
+            "limit": 2,
+            "offset": 1
+        })
+
+        assert len(res) == 2
+
+        db.close()

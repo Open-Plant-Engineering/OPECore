@@ -20,48 +20,68 @@ class QueryEngine:
         }
         """
 
-        # ✅ extract sort
-        sort = q.pop("sort", None)
+        # ✅ backward compatibility
+        if "filter" in q:
+            filter_part = q["filter"]
+        else:
+            filter_part = {
+                k: v for k, v in q.items()
+                if k not in ("sort", "select", "limit", "offset")
+            }
+
+        sort = q.get("sort", None)
+        select = q.get("select", None)
+        limit = q.get("limit", None)
+        offset = q.get("offset", 0)
 
         # ✅ evaluate
-        result = self._eval_query(q)
+        ids = self._eval_query(filter_part)
 
         # ✅ sorting
         if sort:
             field, direction = sort
-            result = self._sort(result, field, direction)
+            ids = self._sort(ids, field, direction)
 
-        return result
+        rp = ResultProcessor(self.db)
+
+        # ✅ If projection requested → return objects
+        if select:
+            data = rp.project(ids, select)
+            data = rp.paginate(data, limit, offset)
+            return data
+
+        # ✅ Otherwise → return IDs (BACKWARD COMPATIBILITY ✅)
+        ids = rp.paginate(ids, limit, offset)
+        return ids
 
     # ------------------------
     # QUERY EVALUATION
     # ------------------------
     def _eval_query(self, q):
         result_sets = []
-    
-        # ✅ handle OR first (but DO NOT return early)
+
+        # ✅ OR
         if "or" in q:
             or_results = set()
             for sub in q["or"]:
                 or_results.update(self._eval_query(sub))
             result_sets.append(or_results)
-    
-        # ✅ handle normal conditions
+
+        # ✅ AND
         for field, condition in q.items():
             if field == "or":
                 continue
-            
+
             matches = self._eval_condition(field, condition)
             result_sets.append(set(matches))
-    
+
         if not result_sets:
-            return []
-    
-        # ✅ APPLY AND across everything
+            return self.db.range(0, (1 << 63) - 1)
+
         result = result_sets[0]
         for s in result_sets[1:]:
             result = result.intersection(s)
-    
+
         return list(result)
 
     # ------------------------
@@ -181,3 +201,31 @@ class QueryEngine:
         data.sort(key=lambda x: (x[1] is None, x[1]), reverse=reverse)
 
         return [oid for oid, _ in data]
+    
+class ResultProcessor:
+    def __init__(self, db):
+        self.db = db
+
+    def project(self, ids, fields):
+        results = []
+
+        for oid in ids:
+            obj = self.db.get(oid)
+            if not obj:
+                continue
+
+            if fields:
+                filtered = {k: obj.get(k) for k in fields if k in obj}
+            else:
+                filtered = obj
+
+            results.append(filtered)
+
+        return results
+
+    def paginate(self, data, limit=None, offset=None):
+        offset = offset or 0
+        if limit is None:
+            return data[offset:]
+
+        return data[offset: offset + limit]
