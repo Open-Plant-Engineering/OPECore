@@ -101,3 +101,39 @@ def test_same_request_id_only_executes_once(tmp_path):
     worker.process_once()
 
     assert len(log.replay()) == 1
+    
+from opecore.state.store import StateStore
+
+
+def test_set_updates_state(tmp_path):
+    from opecore.storage.log import AppendOnlyLog
+    from opecore.queue.queue import RequestQueue
+    from opecore.claims.claims import ClaimManager
+    from opecore.leader.leader import Leader
+    from opecore.leader.worker import LeaderWorker
+    from opecore.recovery.idempotency import IdempotencyStore
+
+    db = tmp_path
+
+    log = AppendOnlyLog(str(db / "data.log"))
+    queue = RequestQueue(str(db / "queue"))
+    claims = ClaimManager(str(db))
+    leader = Leader(str(db))
+    idem = IdempotencyStore(str(db))
+
+    leader.try_become_leader()
+
+    worker = LeaderWorker(log, queue, claims, leader, idem)
+
+    queue.submit({
+        "action": "set",
+        "path": "/a",
+        "value": {"x": 42}
+    })
+
+    worker.process_once()
+
+    store = StateStore(log)
+    store.load()
+
+    assert store.get("/a") == {"x": 42}
