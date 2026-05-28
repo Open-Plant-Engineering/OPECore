@@ -50,3 +50,19 @@ def test_mark_failed(tmp_path):
     q.mark_failed(p)
 
     assert os.path.exists(p.replace(".processing", ".failed"))
+
+def test_recover_processing(tmp_path):
+    from opecore.queue.queue import RequestQueue
+
+    q = RequestQueue(str(tmp_path))
+
+    q.submit({"action": "test"})
+    fname = q.list_requests()[0]
+
+    p = q.mark_processing(fname)
+
+    q.recover_stuck()
+
+    files = q.list_requests()
+
+    assert len(files) == 1

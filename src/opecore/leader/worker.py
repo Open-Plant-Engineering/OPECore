@@ -3,11 +3,15 @@ import time
 
 
 class LeaderWorker:
-    def __init__(self, log, queue, claims, leader):
+    def __init__(self, log, queue, claims, leader, idempotency):
         self.log = log
         self.queue = queue
         self.claims = claims
         self.leader = leader
+        self.idempotency = idempotency
+
+        # ✅ recover stuck files on startup
+        self.queue.recover_stuck()
 
     def process_once(self):
         """
@@ -25,25 +29,34 @@ class LeaderWorker:
                 with open(path, "r") as f:
                     req = json.load(f)
 
+                request_id = req.get("request_id")
+
+                # ✅ Skip duplicate execution
+                if request_id and self.idempotency.is_processed(request_id):
+                    self.queue.mark_done(path)
+                    continue
+
                 ok = self.handle(req)
 
                 if ok:
+                    if request_id:
+                        self.idempotency.mark_processed(request_id)
+
                     self.queue.mark_done(path)
                 else:
                     self.queue.mark_failed(path)
 
             except Exception as e:
-                print("Error:", e)
+                print("Worker error:", e)
 
     def loop(self):
-        """
-        Continuous processing
-        """
         while True:
-            self.process_once()
-            time.sleep(0.1)
+            if self.leader.is_leader():
+                self.leader.heartbeat()  # ✅ keep lease alive
+                self.process_once()
 
-    # 🔥 CORE: command dispatcher
+            time.sleep(0.5)
+
     def handle(self, req: dict) -> bool:
         action = req.get("action")
 
@@ -67,11 +80,3 @@ class LeaderWorker:
             return True
 
         return False
-
-    def loop(self):
-        while True:
-            if self.leader.is_leader():
-                self.leader.heartbeat()   # ✅ critical
-                self.process_once()
-
-            time.sleep(0.5)
