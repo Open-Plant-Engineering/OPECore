@@ -59,3 +59,31 @@ def test_update_node_flow(tmp_path):
     updated = db.get_node(node.refno)
 
     assert updated.name == "updated"
+
+def test_delete_node_flow(tmp_path):
+    wal = WALQueue(str(tmp_path / "wal"))
+    db = JsonDB(str(tmp_path / "main.db"))
+    worker = LeaderWorker(wal, db)
+
+    # Create
+    work = wal.create_work()
+    wal.submit(work, {
+        "action": "create",
+        "name": "a",
+        "type": "x"
+    })
+
+    worker.process_once()
+
+    node = db.list_nodes()[0]
+
+    # Delete
+    work = wal.create_work()
+    wal.submit(work, {
+        "action": "delete",
+        "refno": node.refno
+    })
+
+    worker.process_once()
+
+    assert db.get_node(node.refno) is None
