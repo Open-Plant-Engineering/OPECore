@@ -5,10 +5,11 @@ from opecore.model.node import Node
 
 
 class JsonDB:
-    def __init__(self, db_path: str, chunk_store, name_index):
+    def __init__(self, db_path, chunk_store, name_index, type_store):
         self.db_path = db_path
         self.chunk_store = chunk_store
         self.name_index = name_index
+        self.type_store = type_store
 
         if not os.path.exists(db_path):
             safe_write(db_path, json.dumps({"nodes": {}}).encode())
@@ -75,6 +76,7 @@ class JsonDB:
             if self.name_index.exists(name):
                 raise ValueError(f"Duplicate name: {name}")
 
+        self._validate_against_type(node.attributes)
         encoded = self._encode_attributes(node.attributes)
 
         if node.refno in db["nodes"]:
@@ -125,6 +127,7 @@ class JsonDB:
             if new_name:
                 self.name_index.put(new_name, node.refno)
 
+        self._validate_against_type(node.attributes)
         encoded = self._encode_attributes(node.attributes)
 
         db["nodes"][node.refno] = encoded
@@ -165,3 +168,30 @@ class JsonDB:
             return None
     
         return self.get_node(refno)
+
+    def _validate_against_type(self, attrs: dict):
+        node_type = attrs.get("type")
+
+        if not node_type:
+            return  # no type, skip validation
+
+        schema = self.type_store.get_type(node_type)
+
+        if not schema:
+            raise ValueError(f"Unknown type: {node_type}")
+
+        for k, v in attrs.items():
+            if k in ["refno", "type"]:
+                continue
+
+            expected = schema.get(k)
+
+            if not expected:
+                raise ValueError(f"Attribute not allowed: {k}")
+
+            actual = self._detect_type(v)
+
+            if actual != expected:
+                raise ValueError(
+                    f"Type mismatch for '{k}': expected {expected}, got {actual}"
+                )

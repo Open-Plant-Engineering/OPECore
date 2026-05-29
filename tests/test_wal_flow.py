@@ -3,13 +3,18 @@ from opecore.db.json_db import JsonDB
 from opecore.leader.worker import LeaderWorker
 from opecore.storage.chunk_store import ChunkStore
 from opecore.storage.name_index import NameIndex
+from opecore.storage.type_store import TypeStore
 
 
 def test_full_flow(tmp_path):
     wal = WALQueue(str(tmp_path / "wal"))
     store = ChunkStore(str(tmp_path / "chunks.json"))
     index = NameIndex(str(tmp_path / "name_index.json"))
-    db = JsonDB(str(tmp_path / "main.db"), store, index)
+    ts = TypeStore(str(tmp_path / "types.json"))
+    ts.create_type("zone", {
+        "name": "string",
+    })
+    db = JsonDB(str(tmp_path / "main.db"), store, index, ts)
     worker = LeaderWorker(wal, db)
 
     # create work
