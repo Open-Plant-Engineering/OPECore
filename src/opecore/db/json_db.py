@@ -22,7 +22,10 @@ class JsonDB:
         safe_write(self.db_path, json.dumps(data, indent=2).encode())
 
     # ✅ Helper — detect type
-    def _detect_type(self, value):
+    def _detect_type(self, value, expected_type=None):
+        if expected_type == "ref":
+            return "ref"
+
         if isinstance(value, bool):
             return "bool"
         elif isinstance(value, (int, float)):
@@ -38,12 +41,18 @@ class JsonDB:
     def _encode_attributes(self, attrs: dict):
         encoded = {}
 
+        node_type = attrs.get("type")
+        schema = self.type_store.get_type(node_type) if node_type else {}
+
         for k, v in attrs.items():
             if k == "refno":
                 encoded[k] = v
             else:
-                dtype = self._detect_type(v)
+                expected = schema.get(k) if schema else None
+
+                dtype = self._detect_type(v, expected)
                 cid = self.chunk_store.put(dtype, v)
+
                 encoded[k] = cid
 
         return encoded
@@ -77,6 +86,7 @@ class JsonDB:
                 raise ValueError(f"Duplicate name: {name}")
 
         self._validate_against_type(node.attributes)
+        self._validate_relationships(node.attributes)
         encoded = self._encode_attributes(node.attributes)
 
         if node.refno in db["nodes"]:
@@ -128,6 +138,7 @@ class JsonDB:
                 self.name_index.put(new_name, node.refno)
 
         self._validate_against_type(node.attributes)
+        self._validate_relationships(node.attributes)
         encoded = self._encode_attributes(node.attributes)
 
         db["nodes"][node.refno] = encoded
@@ -189,9 +200,52 @@ class JsonDB:
             if not expected:
                 raise ValueError(f"Attribute not allowed: {k}")
 
-            actual = self._detect_type(v)
+            actual = self._detect_type(v, expected_type=expected)
 
             if actual != expected:
                 raise ValueError(
                     f"Type mismatch for '{k}': expected {expected}, got {actual}"
                 )
+    def _node_exists(self, refno):
+        db = self.load()
+        return refno in db["nodes"]
+
+    def _validate_relationships(self, attrs: dict):
+        refno = attrs.get("refno")
+
+        # ✅ Rule 3: no self-parent
+        parent = attrs.get("parent")
+        if parent:
+            if parent == refno:
+                raise ValueError("Node cannot be parent of itself")
+
+            if not self._node_exists(parent):
+                raise ValueError(f"Parent does not exist: {parent}")
+
+        # ✅ Rule 1: owner must exist
+        owner = attrs.get("owner")
+        if owner:
+            if not self._node_exists(owner):
+                raise ValueError(f"Owner does not exist: {owner}")
+
+        # ✅ Rule 2: validate all REF attributes from schema
+        node_type = attrs.get("type")
+        if not node_type:
+            return
+
+        schema = self.type_store.get_type(node_type)
+        if not schema:
+            return
+
+        for attr_name, dtype in schema.items():
+            if dtype == "ref":
+                ref_value = attrs.get(attr_name)
+
+                # ✅ allowed: missing or None → treated as root/no link
+                if not ref_value:
+                    continue
+
+                if not self._node_exists(ref_value):
+                    raise ValueError(
+                        f"Invalid reference in '{attr_name}': {ref_value}"
+                    )

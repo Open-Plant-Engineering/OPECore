@@ -11,33 +11,41 @@ def test_create_node_flow(tmp_path):
     store = ChunkStore(str(tmp_path / "chunks.json"))
     index = NameIndex(str(tmp_path / "name_index.json"))
     ts = TypeStore(str(tmp_path / "types.json"))
+
     ts.create_type("zone", {
         "name": "string",
-        "owner": "string"
+        "owner": "ref"
     })
 
     db = JsonDB(str(tmp_path / "main.db"), store, index, ts)
     worker = LeaderWorker(wal, db)
 
+    # ✅ create owner node first
+    from opecore.model.node import Node
+
+    owner = Node(attributes={
+        "type": "zone",
+        "name": "owner_node"
+    })
+    db.create_node(owner)
+
     # User creates work file
     work = wal.create_work()
 
-    # Submit request
+    # ✅ use valid refno
     wal.submit(work, {
         "action": "create",
         "name": "zone1",
         "type": "zone",
-        "owner": "user1"
+        "owner": owner.refno
     })
 
-    # Leader processes
     worker.process_once()
 
-    # Validate DB
     nodes = db.list_nodes()
 
-    assert len(nodes) == 1
-    assert nodes[0].attributes["name"] == "zone1"
+    assert len(nodes) == 2   # owner + zone1
+    assert nodes[1].attributes["name"] == "zone1"
 
 
 def test_update_node_flow(tmp_path):
