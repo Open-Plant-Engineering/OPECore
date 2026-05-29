@@ -1,10 +1,11 @@
 from opecore.db.json_db import JsonDB
 from opecore.model.node import Node
 from opecore.db.hierarchy import get_children, get_parent, get_subtree
-
+from opecore.storage.chunk_store import ChunkStore
 
 def test_parent_child(tmp_path):
-    db = JsonDB(str(tmp_path / "main.db"))
+    store = ChunkStore(str(tmp_path / "chunks.json"))
+    db = JsonDB(str(tmp_path / "main.db"), store)
 
     parent = Node(attributes={"name": "parent"})
     db.create_node(parent)
@@ -22,7 +23,8 @@ def test_parent_child(tmp_path):
 
 
 def test_get_parent(tmp_path):
-    db = JsonDB(str(tmp_path / "main.db"))
+    store = ChunkStore(str(tmp_path / "chunks.json"))
+    db = JsonDB(str(tmp_path / "main.db"), store)
 
     parent = Node(attributes={"name": "p"})
     db.create_node(parent)
@@ -39,7 +41,8 @@ def test_get_parent(tmp_path):
 
 
 def test_subtree(tmp_path):
-    db = JsonDB(str(tmp_path / "main.db"))
+    store = ChunkStore(str(tmp_path / "chunks.json"))
+    db = JsonDB(str(tmp_path / "main.db"), store)
 
     root = Node(attributes={"name": "root"})
     db.create_node(root)
@@ -64,7 +67,8 @@ def test_wal_hierarchy(tmp_path):
     from opecore.db.hierarchy import get_children
 
     wal = WALQueue(str(tmp_path / "wal"))
-    db = JsonDB(str(tmp_path / "main.db"))
+    store = ChunkStore(str(tmp_path / "chunks.json"))
+    db = JsonDB(str(tmp_path / "main.db"), store)
     worker = LeaderWorker(wal, db)
 
     # Create parent

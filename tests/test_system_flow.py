@@ -1,11 +1,12 @@
 from opecore.wal.wal_queue import WALQueue
 from opecore.db.json_db import JsonDB
 from opecore.leader.worker import LeaderWorker
-
+from opecore.storage.chunk_store import ChunkStore
 
 def test_create_node_flow(tmp_path):
     wal = WALQueue(str(tmp_path / "wal"))
-    db = JsonDB(str(tmp_path / "main.db"))
+    store = ChunkStore(str(tmp_path / "chunks.json"))
+    db = JsonDB(str(tmp_path / "main.db"), store)
     worker = LeaderWorker(wal, db)
 
     # User creates work file
@@ -31,7 +32,8 @@ def test_create_node_flow(tmp_path):
 
 def test_update_node_flow(tmp_path):
     wal = WALQueue(str(tmp_path / "wal"))
-    db = JsonDB(str(tmp_path / "main.db"))
+    store = ChunkStore(str(tmp_path / "chunks.json"))
+    db = JsonDB(str(tmp_path / "main.db"), store)
     worker = LeaderWorker(wal, db)
 
     # Create
@@ -62,7 +64,8 @@ def test_update_node_flow(tmp_path):
 
 def test_delete_node_flow(tmp_path):
     wal = WALQueue(str(tmp_path / "wal"))
-    db = JsonDB(str(tmp_path / "main.db"))
+    store = ChunkStore(str(tmp_path / "chunks.json"))
+    db = JsonDB(str(tmp_path / "main.db"), store)
     worker = LeaderWorker(wal, db)
 
     # Create

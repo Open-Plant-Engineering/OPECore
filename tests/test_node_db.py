@@ -1,9 +1,10 @@
 from opecore.db.json_db import JsonDB
 from opecore.model.node import Node
-
+from opecore.storage.chunk_store import ChunkStore
 
 def test_create_node(tmp_path):
-    db = JsonDB(str(tmp_path / "main.db"))
+    store = ChunkStore(str(tmp_path / "chunks.json"))
+    db = JsonDB(str(tmp_path / "main.db"), store)
 
     node = Node( attributes = { 
         "name":"zone1", 
