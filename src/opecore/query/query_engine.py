@@ -181,21 +181,21 @@ class QueryEngine:
         """
         Scan index keys for range queries
         """
-    
+
         data = self.db.generic_index._load()
-    
+
         if attr not in data:
             return []
-    
+
         matched_refs = []
-    
+
         for key, refs in data[attr].items():
             try:
                 key_val = float(key)
                 val = float(value)
             except:
                 continue
-            
+
             if op == "gt" and key_val > val:
                 matched_refs.extend(refs)
             elif op == "lt" and key_val < val:
@@ -204,6 +204,60 @@ class QueryEngine:
                 matched_refs.extend(refs)
             elif op == "lte" and key_val <= val:
                 matched_refs.extend(refs)
-    
+
         return matched_refs
-    
+
+    def get_children(self, parent_ref):
+        refs = self.db.generic_index.get("parent", parent_ref)
+
+        return [self.db.get_node(r) for r in refs]
+
+    def get_descendants(self, parent_ref):
+        result = []
+        visited = set()
+
+        def dfs(ref):
+            if ref in visited:
+                return
+            visited.add(ref)
+
+            children = self.db.generic_index.get("parent", ref)
+
+            for c in children:
+                result.append(self.db.get_node(c))
+                dfs(c)
+
+        dfs(parent_ref)
+        return result
+
+    def get_ancestors(self, refno):
+        result = []
+
+        current = self.db.get_node(refno)
+
+        while current:
+            parent = current.attributes.get("parent")
+
+            if not parent:
+                break
+
+            parent_node = self.db.get_node(parent)
+            if not parent_node:
+                break
+
+            result.append(parent_node)
+            current = parent_node
+
+        return result
+
+    def query_subtree(self, parent_ref, query):
+        descendants = self.get_descendants(parent_ref)
+
+        result = []
+
+        for node in descendants:
+            if self._evaluate(node, query):
+                result.append(node)
+
+        return result
+

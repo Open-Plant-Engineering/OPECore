@@ -15,7 +15,8 @@ def setup_db(tmp_path):
 
     ts.create_type("ITEM", {
         "name": "string",
-        "value": "real"
+        "value": "real",
+        "parent": "ref",
     })
 
     db = JsonDB(str(tmp_path / "db.json"), cs, ni, ts, gindex)
@@ -519,4 +520,74 @@ def test_range_and(tmp_path):
 
     assert len(result) == 1
     assert result[0].attributes["value"] == 15
+
+def test_get_children(tmp_path):
+    db = setup_db(tmp_path)
+    qe = QueryEngine(db)
+
+    parent = Node(attributes={"type": "ITEM", "name": "parent"})
+    db.create_node(parent)
+
+    child = Node(attributes={
+        "type": "ITEM",
+        "name": "child",
+        "parent": parent.refno
+    })
+    db.create_node(child)
+
+    children = qe.get_children(parent.refno)
+
+    assert len(children) == 1
+    assert children[0].attributes["name"] == "child"
+
+def test_get_descendants(tmp_path):
+    db = setup_db(tmp_path)
+    qe = QueryEngine(db)
+
+    root = Node({"type": "ITEM", "name": "root"})
+    db.create_node(root)
+
+    c1 = Node({"type": "ITEM", "name": "c1", "parent": root.refno})
+    db.create_node(c1)
+
+    c2 = Node({"type": "ITEM", "name": "c2", "parent": c1.refno})
+    db.create_node(c2)
+
+    desc = qe.get_descendants(root.refno)
+
+    assert len(desc) == 2
+
+def test_get_ancestors(tmp_path):
+    db = setup_db(tmp_path)
+    qe = QueryEngine(db)
+
+    root = Node({"type": "ITEM", "name": "root"})
+    db.create_node(root)
+
+    child = Node({"type": "ITEM", "name": "child", "parent": root.refno})
+    db.create_node(child)
+
+    grand = Node({"type": "ITEM", "name": "grand", "parent": child.refno})
+    db.create_node(grand)
+
+    ancestors = qe.get_ancestors(grand.refno)
+
+    assert len(ancestors) == 2
+
+def test_subtree_query(tmp_path):
+    db = setup_db(tmp_path)
+    qe = QueryEngine(db)
+
+    root = Node({"type": "ITEM", "name": "root"})
+    db.create_node(root)
+
+    c1 = Node({"type": "ITEM", "name": "a", "value": 10, "parent": root.refno})
+    c2 = Node({"type": "ITEM", "name": "b", "value": 20, "parent": root.refno})
+
+    db.create_node(c1)
+    db.create_node(c2)
+
+    result = qe.query_subtree(root.refno, {"value": {"gt": 10}})
+
+    assert len(result) == 1
 
