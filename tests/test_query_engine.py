@@ -387,3 +387,81 @@ def test_optimizer_fallback(tmp_path):
 
     assert len(result) == 1
 
+def test_not_simple(tmp_path):
+    db = setup_db(tmp_path)
+    qe = QueryEngine(db)
+
+    n1 = Node(attributes={"type": "ITEM", "name": "a", "value": 10})
+    n2 = Node(attributes={"type": "ITEM", "name": "b", "value": 20})
+
+    db.create_node(n1)
+    db.create_node(n2)
+
+    result = qe.filter({
+        "not": {"name": "a"}
+    })
+
+    assert len(result) == 1
+    assert result[0].attributes["name"] == "b"
+
+def test_not_operator(tmp_path):
+    db = setup_db(tmp_path)
+    qe = QueryEngine(db)
+
+    n1 = Node(attributes={"type": "ITEM", "name": "a", "value": 10})
+    n2 = Node(attributes={"type": "ITEM", "name": "b", "value": 20})
+
+    db.create_node(n1)
+    db.create_node(n2)
+
+    result = qe.filter({
+        "not": {"value": {"gt": 15}}
+    })
+
+    assert len(result) == 1
+    assert result[0].attributes["value"] == 10
+
+def test_not_and(tmp_path):
+    db = setup_db(tmp_path)
+    qe = QueryEngine(db)
+
+    n1 = Node(attributes={"type": "ITEM", "name": "a", "value": 10})
+    n2 = Node(attributes={"type": "ITEM", "name": "b", "value": 10})
+
+    db.create_node(n1)
+    db.create_node(n2)
+
+    result = qe.filter({
+        "and": [
+            {"value": 10},
+            {"not": {"name": "a"}}
+        ]
+    })
+
+    assert len(result) == 1
+    assert result[0].attributes["name"] == "b"
+
+def test_not_or(tmp_path):
+    db = setup_db(tmp_path)
+    qe = QueryEngine(db)
+
+    n1 = Node(attributes={"type": "ITEM", "name": "a", "value": 10})
+    n2 = Node(attributes={"type": "ITEM", "name": "b", "value": 20})
+    n3 = Node(attributes={"type": "ITEM", "name": "c", "value": 30})
+
+    db.create_node(n1)
+    db.create_node(n2)
+    db.create_node(n3)
+
+    result = qe.filter({
+        "not": {
+            "or": [
+                {"name": "a"},
+                {"value": 20}
+            ]
+        }
+    })
+
+    assert len(result) == 1
+    assert result[0].attributes["name"] == "c"
+

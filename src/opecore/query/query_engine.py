@@ -19,21 +19,25 @@ class QueryEngine:
         return result
 
     def _evaluate(self, node, query):
+        # ✅ NOT condition
+        if "not" in query:
+            return not self._evaluate(node, query["not"])
+    
         # ✅ OR condition
         if "or" in query:
             for sub in query["or"]:
                 if self._evaluate(node, sub):
                     return True
             return False
-
+    
         # ✅ AND condition
         if "and" in query:
             for sub in query["and"]:
                 if not self._evaluate(node, sub):
                     return False
             return True
-
-        # ✅ simple condition (base case)
+    
+        # ✅ simple condition
         return self._match_simple(node, query)
 
     def _match_simple(self, node, conditions):
@@ -159,23 +163,22 @@ class QueryEngine:
         Extract (attr, value) pairs for index lookup.
         Only supports simple equality for now.
         """
-    
+
         conditions = []
-    
+
         # ✅ simple case
         for k, v in query.items():
             if k in ["and", "or"]:
                 continue
-            
+
             if not isinstance(v, dict):  # only equality
                 conditions.append((k, v))
-    
+
         # ✅ AND case
         if "and" in query:
             for sub in query["and"]:
                 for k, v in sub.items():
                     if not isinstance(v, dict):
                         conditions.append((k, v))
-    
+
         return conditions
-    
