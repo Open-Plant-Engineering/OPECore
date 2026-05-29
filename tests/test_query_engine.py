@@ -170,3 +170,68 @@ def test_and_still_works(tmp_path):
     assert len(result) == 1
 
 
+def test_gt_operator(tmp_path):
+    db = setup_db(tmp_path)
+    qe = QueryEngine(db)
+
+    n1 = Node(attributes={"type": "ITEM", "name": "a", "value": 10})
+    n2 = Node(attributes={"type": "ITEM", "name": "b", "value": 20})
+
+    db.create_node(n1)
+    db.create_node(n2)
+
+    result = qe.filter({
+        "value": {"gt": 15}
+    })
+
+    assert len(result) == 1
+    assert result[0].attributes["value"] == 20
+
+def test_in_operator(tmp_path):
+    db = setup_db(tmp_path)
+    qe = QueryEngine(db)
+
+    n1 = Node(attributes={"type": "ITEM", "name": "a", "value": 10})
+    n2 = Node(attributes={"type": "ITEM", "name": "b", "value": 20})
+
+    db.create_node(n1)
+    db.create_node(n2)
+
+    result = qe.filter({
+        "name": {"in": ["a", "c"]}
+    })
+
+    assert len(result) == 1
+
+def test_like_operator(tmp_path):
+    db = setup_db(tmp_path)
+    qe = QueryEngine(db)
+
+    n1 = Node(attributes={"type": "ITEM", "name": "pipe1", "value": 10})
+    n2 = Node(attributes={"type": "ITEM", "name": "zone1", "value": 20})
+
+    db.create_node(n1)
+    db.create_node(n2)
+
+    result = qe.filter({
+        "name": {"like": "pipe*"}
+    })
+
+    assert len(result) == 1
+
+def test_range_operator(tmp_path):
+    db = setup_db(tmp_path)
+    qe = QueryEngine(db)
+
+    n1 = Node(attributes={"type": "ITEM", "name": "a", "value": 10})
+    n2 = Node(attributes={"type": "ITEM", "name": "b", "value": 20})
+
+    db.create_node(n1)
+    db.create_node(n2)
+
+    result = qe.filter({
+        "value": {"gte": 10, "lte": 20}
+    })
+
+    assert len(result) == 2
+
