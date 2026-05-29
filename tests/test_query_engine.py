@@ -89,3 +89,84 @@ def test_no_match(tmp_path):
     })
 
     assert len(result) == 0
+
+def test_or_condition(tmp_path):
+    db = setup_db(tmp_path)
+    qe = QueryEngine(db)
+
+    n1 = Node(attributes={"type": "ITEM", "name": "a", "value": 10})
+    n2 = Node(attributes={"type": "ITEM", "name": "b", "value": 20})
+
+    db.create_node(n1)
+    db.create_node(n2)
+
+    result = qe.filter({
+        "or": [
+            {"name": "a"},
+            {"value": 20}
+        ]
+    })
+
+    assert len(result) == 2
+
+def test_or_no_match(tmp_path):
+    db = setup_db(tmp_path)
+    qe = QueryEngine(db)
+
+    n1 = Node(attributes={"type": "ITEM", "name": "a", "value": 10})
+    db.create_node(n1)
+
+    result = qe.filter({
+        "or": [
+            {"name": "x"},
+            {"value": 999}
+        ]
+    })
+
+    assert len(result) == 0
+
+def test_and_or_mix(tmp_path):
+    db = setup_db(tmp_path)
+    qe = QueryEngine(db)
+
+    n1 = Node(attributes={"type": "ITEM", "name": "a", "value": 10})
+    n2 = Node(attributes={"type": "ITEM", "name": "b", "value": 20})
+    n3 = Node(attributes={"type": "ITEM", "name": "c", "value": 30})
+
+    db.create_node(n1)
+    db.create_node(n2)
+    db.create_node(n3)
+
+    result = qe.filter({
+        "or": [
+            {"and": [
+                {"name": "a"},
+                {"value": 10}
+            ]},
+            {"name": "b"}
+        ]
+    })
+
+    assert len(result) == 2
+
+
+def test_and_still_works(tmp_path):
+    db = setup_db(tmp_path)
+    qe = QueryEngine(db)
+
+    n1 = Node(attributes={"type": "ITEM", "name": "a", "value": 10})
+    n2 = Node(attributes={"type": "ITEM", "name": "b", "value": 20})
+
+    db.create_node(n1)
+    db.create_node(n2)
+
+    result = qe.filter({
+        "and": [
+            {"name": "a"},
+            {"value": 10}
+        ]
+    })
+
+    assert len(result) == 1
+
+
