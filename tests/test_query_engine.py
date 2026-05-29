@@ -465,3 +465,58 @@ def test_not_or(tmp_path):
     assert len(result) == 1
     assert result[0].attributes["name"] == "c"
 
+def test_gt_index(tmp_path):
+    db = setup_db(tmp_path)
+    qe = QueryEngine(db)
+
+    n1 = Node(attributes={"type": "ITEM", "name": "a", "value": 10})
+    n2 = Node(attributes={"type": "ITEM", "name": "b", "value": 20})
+
+    db.create_node(n1)
+    db.create_node(n2)
+
+    result = qe.filter({
+        "value": {"gt": 10}
+    })
+
+    assert len(result) == 1
+    assert result[0].attributes["value"] == 20
+
+def test_lt_index(tmp_path):
+    db = setup_db(tmp_path)
+    qe = QueryEngine(db)
+
+    n1 = Node(attributes={"type": "ITEM", "name": "a", "value": 5})
+    n2 = Node(attributes={"type": "ITEM", "name": "b", "value": 20})
+
+    db.create_node(n1)
+    db.create_node(n2)
+
+    result = qe.filter({
+        "value": {"lt": 10}
+    })
+
+    assert len(result) == 1
+
+def test_range_and(tmp_path):
+    db = setup_db(tmp_path)
+    qe = QueryEngine(db)
+
+    n1 = Node(attributes={"type": "ITEM", "name": "a", "value": 5})
+    n2 = Node(attributes={"type": "ITEM", "name": "b", "value": 15})
+    n3 = Node(attributes={"type": "ITEM", "name": "c", "value": 25})
+
+    db.create_node(n1)
+    db.create_node(n2)
+    db.create_node(n3)
+
+    result = qe.filter({
+        "and": [
+            {"value": {"gt": 10}},
+            {"value": {"lt": 20}}
+        ]
+    })
+
+    assert len(result) == 1
+    assert result[0].attributes["value"] == 15
+

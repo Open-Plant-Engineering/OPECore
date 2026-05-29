@@ -112,73 +112,98 @@ class QueryEngine:
                 raise ValueError(f"Unknown operator: {op}")
 
         return True
-
     def _get_index_candidates(self, query):
-        """
-        Optimized index selection:
-        - collect all indexable conditions
-        - choose smallest candidate set
-        - apply intersection for AND
-        """
-    
         conditions = self._extract_simple_conditions(query)
-    
+
         indexed_results = []
-    
-        for k, v in conditions:
-            # ✅ name index (fastest, unique)
-            if k == "name":
+
+        for k, op, v in conditions:
+
+            # ✅ name index (only eq supported)
+            if k == "name" and op == "eq":
                 ref = self.db.name_index.get(v)
                 if not ref:
-                    return []  # no match
-    
+                    return []
                 indexed_results.append({ref})
                 continue
-            
+
             # ✅ generic index
-            refs = self.db.generic_index.get(k, v)
-            if refs:
-                indexed_results.append(set(refs))
-    
+            if op == "eq":
+                refs = self.db.generic_index.get(k, v)
+                if refs:
+                    indexed_results.append(set(refs))
+
+            # ✅ RANGE SUPPORT 🔥
+            elif op in ["gt", "lt", "gte", "lte"]:
+                refs = self._range_lookup(k, op, v)
+                if refs:
+                    indexed_results.append(set(refs))
+
         if not indexed_results:
-            return None  # fallback to scan
-    
-        # ✅ choose smallest set first
+            return None
+
+        # ✅ pick smallest first
         indexed_results.sort(key=len)
-    
+
         result = indexed_results[0]
 
-        # ✅ intersect remaining sets
         for s in indexed_results[1:]:
             result = result & s
-    
+
         if not result:
             return []
-    
-        # ✅ convert to nodes
+
         return [self.db.get_node(ref) for ref in result]
 
     def _extract_simple_conditions(self, query):
-        """
-        Extract (attr, value) pairs for index lookup.
-        Only supports simple equality for now.
-        """
-
         conditions = []
 
-        # ✅ simple case
         for k, v in query.items():
-            if k in ["and", "or"]:
+            if k in ["and", "or", "not"]:
                 continue
 
-            if not isinstance(v, dict):  # only equality
-                conditions.append((k, v))
+            # ✅ simple equality
+            if not isinstance(v, dict):
+                conditions.append((k, "eq", v))
+            else:
+                # ✅ operator extraction
+                for op, val in v.items():
+                    if op in ["gt", "lt", "gte", "lte"]:
+                        conditions.append((k, op, val))
 
-        # ✅ AND case
         if "and" in query:
             for sub in query["and"]:
-                for k, v in sub.items():
-                    if not isinstance(v, dict):
-                        conditions.append((k, v))
+                conditions.extend(self._extract_simple_conditions(sub))
 
         return conditions
+
+    def _range_lookup(self, attr, op, value):
+        """
+        Scan index keys for range queries
+        """
+    
+        data = self.db.generic_index._load()
+    
+        if attr not in data:
+            return []
+    
+        matched_refs = []
+    
+        for key, refs in data[attr].items():
+            try:
+                key_val = float(key)
+                val = float(value)
+            except:
+                continue
+            
+            if op == "gt" and key_val > val:
+                matched_refs.extend(refs)
+            elif op == "lt" and key_val < val:
+                matched_refs.extend(refs)
+            elif op == "gte" and key_val >= val:
+                matched_refs.extend(refs)
+            elif op == "lte" and key_val <= val:
+                matched_refs.extend(refs)
+    
+        return matched_refs
+    
