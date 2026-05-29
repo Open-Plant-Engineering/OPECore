@@ -21,7 +21,7 @@ def setup_db(tmp_path):
 
 
 # ✅ test equality query
-def test_filter_equal(tmp_path):
+def test_filter(tmp_path):
     db = setup_db(tmp_path)
     qe = QueryEngine(db)
 
@@ -40,7 +40,52 @@ def test_filter_equal(tmp_path):
     db.create_node(n1)
     db.create_node(n2)
 
-    result = qe.filter_equal("name", "a")
+    result = qe.filter({"name": "a"})
 
     assert len(result) == 1
     assert result[0].attributes["name"] == "a"
+
+def test_single_filter(tmp_path):
+    db = setup_db(tmp_path)
+    qe = QueryEngine(db)
+
+    n1 = Node(attributes={"type": "ITEM", "name": "a", "value": 10})
+    n2 = Node(attributes={"type": "ITEM", "name": "b", "value": 20})
+
+    db.create_node(n1)
+    db.create_node(n2)
+
+    result = qe.filter({"name": "a"})
+
+    assert len(result) == 1
+
+def test_and_filter(tmp_path):
+    db = setup_db(tmp_path)
+    qe = QueryEngine(db)
+
+    n1 = Node(attributes={"type": "ITEM", "name": "a", "value": 10})
+    n2 = Node(attributes={"type": "ITEM", "name": "b", "value": 20})
+
+    db.create_node(n1)
+    db.create_node(n2)
+
+    result = qe.filter({
+        "name": "a",
+        "value": 10
+    })
+
+    assert len(result) == 1
+    assert result[0].attributes["value"] == 10
+
+def test_no_match(tmp_path):
+    db = setup_db(tmp_path)
+    qe = QueryEngine(db)
+
+    n1 = Node(attributes={"type": "ITEM", "name": "a", "value": 10})
+    db.create_node(n1)
+
+    result = qe.filter({
+        "name": "b"
+    })
+
+    assert len(result) == 0
