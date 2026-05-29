@@ -110,35 +110,72 @@ class QueryEngine:
         return True
 
     def _get_index_candidates(self, query):
-        # ✅ name index (fastest)
-        if "name" in query and not isinstance(query["name"], dict):
-            ref = self.db.name_index.get(query["name"])
-            if ref:
-                return [self.db.get_node(ref)]
-            return []
+        """
+        Optimized index selection:
+        - collect all indexable conditions
+        - choose smallest candidate set
+        - apply intersection for AND
+        """
     
-        # ✅ generic index
-        # only for simple equality
-        for k, v in query.items():
-            if isinstance(v, dict):
-                continue
-            
+        conditions = self._extract_simple_conditions(query)
+    
+        indexed_results = []
+    
+        for k, v in conditions:
+            # ✅ name index (fastest, unique)
             if k == "name":
+                ref = self.db.name_index.get(v)
+                if not ref:
+                    return []  # no match
+    
+                indexed_results.append({ref})
                 continue
             
+            # ✅ generic index
             refs = self.db.generic_index.get(k, v)
             if refs:
-                return [self.db.get_node(r) for r in refs]
+                indexed_results.append(set(refs))
+    
+        if not indexed_results:
+            return None  # fallback to scan
+    
+        # ✅ choose smallest set first
+        indexed_results.sort(key=len)
+    
+        result = indexed_results[0]
+
+        # ✅ intersect remaining sets
+        for s in indexed_results[1:]:
+            result = result & s
+    
+        if not result:
+            return []
+    
+        # ✅ convert to nodes
+        return [self.db.get_node(ref) for ref in result]
+
+    def _extract_simple_conditions(self, query):
+        """
+        Extract (attr, value) pairs for index lookup.
+        Only supports simple equality for now.
+        """
+    
+        conditions = []
+    
+        # ✅ simple case
+        for k, v in query.items():
+            if k in ["and", "or"]:
+                continue
+            
+            if not isinstance(v, dict):  # only equality
+                conditions.append((k, v))
     
         # ✅ AND case
         if "and" in query:
-            for cond in query["and"]:
-                for k, v in cond.items():
-                    if isinstance(v, dict):
-                        continue
-                    
-                    refs = self.db.generic_index.get(k, v)
-                    if refs:
-                        return [self.db.get_node(r) for r in refs]
+            for sub in query["and"]:
+                for k, v in sub.items():
+                    if not isinstance(v, dict):
+                        conditions.append((k, v))
     
-        return None
+        return conditions
+    

@@ -334,3 +334,56 @@ def test_fallback_when_no_index(tmp_path):
 
     assert len(result) == 1
 
+def test_optimizer_prefers_smallest(tmp_path):
+    db = setup_db(tmp_path)
+    qe = QueryEngine(db)
+
+    # many value=10
+    nodes = []
+    for i in range(10):
+        n = Node(attributes={"type": "ITEM", "name": f"n{i}", "value": 10})
+        db.create_node(n)
+        nodes.append(n)
+
+    # one unique value
+    special = Node(attributes={"type": "ITEM", "name": "unique", "value": 99})
+    db.create_node(special)
+
+    result = qe.filter({
+        "value": 99
+    })
+
+    assert len(result) == 1
+
+def test_optimizer_intersection(tmp_path):
+    db = setup_db(tmp_path)
+    qe = QueryEngine(db)
+
+    n1 = Node(attributes={"type": "ITEM", "name": "a", "value": 10})
+    n2 = Node(attributes={"type": "ITEM", "name": "b", "value": 10})
+
+    db.create_node(n1)
+    db.create_node(n2)
+
+    result = qe.filter({
+        "and": [
+            {"value": 10},
+            {"name": "a"}
+        ]
+    })
+
+    assert len(result) == 1
+
+def test_optimizer_fallback(tmp_path):
+    db = setup_db(tmp_path)
+    qe = QueryEngine(db)
+
+    n = Node(attributes={"type": "ITEM", "name": "a", "value": 10})
+    db.create_node(n)
+
+    result = qe.filter({
+        "value": {"gt": 5}
+    })
+
+    assert len(result) == 1
+
