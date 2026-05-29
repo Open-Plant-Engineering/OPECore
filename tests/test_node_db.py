@@ -5,9 +5,12 @@ from opecore.model.node import Node
 def test_create_node(tmp_path):
     db = JsonDB(str(tmp_path / "main.db"))
 
-    node = Node(name="zone1", node_type="zone")
+    node = Node( attributes = { 
+        "name":"zone1", 
+        "node_type":"zone"
+        } )
     ref = db.create_node(node)
 
     loaded = db.get_node(ref)
 
-    assert loaded.name == "zone1"
+    assert loaded.attributes["name"] == "zone1"

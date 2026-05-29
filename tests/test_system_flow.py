@@ -26,7 +26,7 @@ def test_create_node_flow(tmp_path):
     nodes = db.list_nodes()
 
     assert len(nodes) == 1
-    assert nodes[0].name == "zone1"
+    assert nodes[0].attributes["name"] == "zone1"
 
 
 def test_update_node_flow(tmp_path):
@@ -58,7 +58,7 @@ def test_update_node_flow(tmp_path):
 
     updated = db.get_node(node.refno)
 
-    assert updated.name == "updated"
+    assert updated.attributes["name"] == "updated"
 
 def test_delete_node_flow(tmp_path):
     wal = WALQueue(str(tmp_path / "wal"))
@@ -86,4 +86,4 @@ def test_delete_node_flow(tmp_path):
 
     worker.process_once()
 
-    assert db.get_node(node.refno) is None
+    assert db.get_node(node.attributes["refno"]) is None

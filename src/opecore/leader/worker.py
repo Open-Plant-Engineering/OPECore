@@ -1,5 +1,5 @@
 import json
-
+from opecore.model.node import Node
 
 class LeaderWorker:
     def __init__(self, queue, db):
@@ -31,13 +31,10 @@ class LeaderWorker:
 
         # ✅ CREATE NODE
         if action == "create":
-            from opecore.model.node import Node
+            attrs = req.copy()
+            attrs.pop("action", None)
 
-            node = Node(
-                name=req["name"],
-                node_type=req["type"],
-                owner=req.get("owner")
-            )
+            node = Node(attributes=attrs)
 
             self.db.create_node(node)
             return True
@@ -48,8 +45,11 @@ class LeaderWorker:
             if not node:
                 return False
 
-            node.name = req.get("name", node.name)
-            node.attributes.update(req.get("attributes", {}))
+            updates = req.copy()
+            updates.pop("action", None)
+            updates.pop("refno", None)
+
+            node.attributes.update(updates)
 
             self.db.update_node(node)
             return True

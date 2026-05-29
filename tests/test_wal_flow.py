@@ -23,4 +23,4 @@ def test_full_flow(tmp_path):
     nodes = db.list_nodes()
 
     assert len(nodes) == 1
-    assert nodes[0].name == "zone1"
+    assert nodes[0].attributes["name"] == "zone1"
