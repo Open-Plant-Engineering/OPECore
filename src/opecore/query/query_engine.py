@@ -110,29 +110,35 @@ class QueryEngine:
         return True
 
     def _get_index_candidates(self, query):
-        """
-        Try to reduce search space using index.
-        Currently supports:
-        - name equality
-        - name eq inside AND
-        """
-    
-        # ✅ simple case: {"name": "a"}
+        # ✅ name index (fastest)
         if "name" in query and not isinstance(query["name"], dict):
             ref = self.db.name_index.get(query["name"])
             if ref:
-                node = self.db.get_node(ref)
-                return [node]
+                return [self.db.get_node(ref)]
             return []
+    
+        # ✅ generic index
+        # only for simple equality
+        for k, v in query.items():
+            if isinstance(v, dict):
+                continue
+            
+            if k == "name":
+                continue
+            
+            refs = self.db.generic_index.get(k, v)
+            if refs:
+                return [self.db.get_node(r) for r in refs]
     
         # ✅ AND case
         if "and" in query:
             for cond in query["and"]:
-                if "name" in cond and not isinstance(cond["name"], dict):
-                    ref = self.db.name_index.get(cond["name"])
-                    if ref:
-                        node = self.db.get_node(ref)
-                        return [node]
-                    return []
+                for k, v in cond.items():
+                    if isinstance(v, dict):
+                        continue
+                    
+                    refs = self.db.generic_index.get(k, v)
+                    if refs:
+                        return [self.db.get_node(r) for r in refs]
     
-        return None  # fallback
+        return None

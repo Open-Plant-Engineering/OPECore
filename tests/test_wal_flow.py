@@ -4,6 +4,7 @@ from opecore.leader.worker import LeaderWorker
 from opecore.storage.chunk_store import ChunkStore
 from opecore.storage.name_index import NameIndex
 from opecore.storage.type_store import TypeStore
+from opecore.storage.generic_index import GenericIndex
 
 
 def test_full_flow(tmp_path):
@@ -14,7 +15,10 @@ def test_full_flow(tmp_path):
     ts.create_type("zone", {
         "name": "string",
     })
-    db = JsonDB(str(tmp_path / "main.db"), store, index, ts)
+
+    gindex = GenericIndex(str(tmp_path / "gindex.json"))
+    db = JsonDB(str(tmp_path / "db.json"), store, index, ts, gindex)
+    
     worker = LeaderWorker(wal, db)
 
     # create work

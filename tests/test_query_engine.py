@@ -4,19 +4,21 @@ from opecore.db.json_db import JsonDB
 from opecore.storage.chunk_store import ChunkStore
 from opecore.storage.name_index import NameIndex
 from opecore.storage.type_store import TypeStore
+from opecore.storage.generic_index import GenericIndex
 
 
 def setup_db(tmp_path):
     cs = ChunkStore(str(tmp_path / "chunks.json"))
     ni = NameIndex(str(tmp_path / "index.json"))
     ts = TypeStore(str(tmp_path / "types.json"))
+    gindex = GenericIndex(str(tmp_path / "gindex.json"))
 
     ts.create_type("ITEM", {
         "name": "string",
         "value": "real"
     })
 
-    db = JsonDB(str(tmp_path / "db.json"), cs, ni, ts)
+    db = JsonDB(str(tmp_path / "db.json"), cs, ni, ts, gindex)
     return db
 
 
@@ -285,3 +287,50 @@ def test_fallback_scan(tmp_path):
     })
 
     assert len(result) == 1
+
+def test_generic_index(tmp_path):
+    db = setup_db(tmp_path)
+    qe = QueryEngine(db)
+
+    n1 = Node(attributes={"type": "ITEM", "name": "a", "value": 10})
+    n2 = Node(attributes={"type": "ITEM", "name": "b", "value": 20})
+
+    db.create_node(n1)
+    db.create_node(n2)
+
+    result = qe.filter({"value": 10})
+
+    assert len(result) == 1
+
+def test_and_with_index(tmp_path):
+    db = setup_db(tmp_path)
+    qe = QueryEngine(db)
+
+    n1 = Node(attributes={"type": "ITEM", "name": "a", "value": 10})
+    n2 = Node(attributes={"type": "ITEM", "name": "b", "value": 10})
+
+    db.create_node(n1)
+    db.create_node(n2)
+
+    result = qe.filter({
+        "and": [
+            {"value": 10},
+            {"name": "a"}
+        ]
+    })
+
+    assert len(result) == 1
+
+def test_fallback_when_no_index(tmp_path):
+    db = setup_db(tmp_path)
+    qe = QueryEngine(db)
+
+    n1 = Node(attributes={"type": "ITEM", "name": "a", "value": 10})
+    db.create_node(n1)
+
+    result = qe.filter({
+        "value": {"gt": 5}
+    })
+
+    assert len(result) == 1
+

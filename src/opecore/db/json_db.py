@@ -5,11 +5,12 @@ from opecore.model.node import Node
 
 
 class JsonDB:
-    def __init__(self, db_path, chunk_store, name_index, type_store):
+    def __init__(self, db_path, chunk_store, name_index, type_store, generic_index):
         self.db_path = db_path
         self.chunk_store = chunk_store
         self.name_index = name_index
         self.type_store = type_store
+        self.generic_index = generic_index
 
         if not os.path.exists(db_path):
             safe_write(db_path, json.dumps({"nodes": {}}).encode())
@@ -100,6 +101,13 @@ class JsonDB:
         if name:
             self.name_index.put(name, node.refno)
 
+        # ✅ add to generic index
+        for k, v in node.attributes.items():
+            if k in ["refno", "name"] or v is None:
+                continue
+            
+            self.generic_index.add(k, v, node.refno)
+
         return node.refno
 
     # ✅ READ
@@ -126,30 +134,59 @@ class JsonDB:
         old_name = old_node.attributes.get("name")
         new_name = node.attributes.get("name")
 
-        # ✅ name change
+        # ✅ merge attributes (optional but recommended)
+        merged_attrs = old_node.attributes.copy()
+        merged_attrs.update(node.attributes)
+        node.attributes = merged_attrs
+
+        # ✅ name validation
         if old_name != new_name:
             if new_name and self.name_index.exists(new_name):
                 raise ValueError(f"Duplicate name: {new_name}")
 
+        # ✅ validate FIRST
+        self._validate_against_type(node.attributes)
+        self._validate_relationships(node.attributes)
+
+        # ✅ update name index AFTER validation
+        if old_name != new_name:
             if old_name:
                 self.name_index.remove(old_name)
-
             if new_name:
                 self.name_index.put(new_name, node.refno)
 
-        self._validate_against_type(node.attributes)
-        self._validate_relationships(node.attributes)
+        # ✅ remove old generic index
+        for k, v in old_node.attributes.items():
+            if k in ["refno", "name"] or v is None:
+                continue
+
+            self.generic_index.remove(k, v, node.refno)
+
+        # ✅ encode + save
         encoded = self._encode_attributes(node.attributes)
-
         db["nodes"][node.refno] = encoded
-
         self.save(db)
+
+        # ✅ add new generic index
+        for k, v in node.attributes.items():
+            if k in ["refno", "name"] or v is None:
+                continue
+
+            self.generic_index.add(k, v, node.refno)
 
     # ✅ DELETE
     def delete_node(self, refno: str):
         db = self.load()
 
         node = self.get_node(refno)
+
+        # ✅ remove from generic index
+        if node:
+            for k, v in node.attributes.items():
+                if k in ["refno", "name"] or v is None:
+                    continue
+                
+                self.generic_index.remove(k, v, refno)
 
         if node:
             name = node.attributes.get("name")
@@ -206,6 +243,7 @@ class JsonDB:
                 raise ValueError(
                     f"Type mismatch for '{k}': expected {expected}, got {actual}"
                 )
+
     def _node_exists(self, refno):
         db = self.load()
         return refno in db["nodes"]

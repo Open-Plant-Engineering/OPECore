@@ -3,7 +3,7 @@ from opecore.db.json_db import JsonDB
 from opecore.storage.chunk_store import ChunkStore
 from opecore.storage.name_index import NameIndex
 from opecore.storage.type_store import TypeStore
-
+from opecore.storage.generic_index import GenericIndex
 
 def setup_db(tmp_path):
     cs = ChunkStore(str(tmp_path / "chunks.json"))
@@ -16,7 +16,8 @@ def setup_db(tmp_path):
         "owner": "ref"
     })
 
-    db = JsonDB(str(tmp_path / "db.json"), cs, ni, ts)
+    gindex = GenericIndex(str(tmp_path / "gindex.json"))
+    db = JsonDB(str(tmp_path / "db.json"), cs, ni, ts, gindex)
     return db
 
 

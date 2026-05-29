@@ -6,13 +6,15 @@ from opecore.storage.name_index import NameIndex
 from opecore.wal.wal_queue import WALQueue
 from opecore.leader.worker import LeaderWorker
 from opecore.storage.type_store import TypeStore
+from opecore.storage.generic_index import GenericIndex
 
 
 def test_parent_child(tmp_path):
     store = ChunkStore(str(tmp_path / "chunks.json"))
     index = NameIndex(str(tmp_path / "name_index.json"))
     ts = TypeStore(str(tmp_path / "types.json"))
-    db = JsonDB(str(tmp_path / "main.db"), store, index, ts)
+    gindex = GenericIndex(str(tmp_path / "gindex.json"))
+    db = JsonDB(str(tmp_path / "db.json"), store, index, ts, gindex)
 
     parent = Node(attributes={"name": "parent"})
     db.create_node(parent)
@@ -33,7 +35,8 @@ def test_get_parent(tmp_path):
     store = ChunkStore(str(tmp_path / "chunks.json"))
     index = NameIndex(str(tmp_path / "name_index.json"))
     ts = TypeStore(str(tmp_path / "types.json"))
-    db = JsonDB(str(tmp_path / "main.db"), store, index, ts)
+    gindex = GenericIndex(str(tmp_path / "gindex.json"))
+    db = JsonDB(str(tmp_path / "db.json"), store, index, ts, gindex)
 
     parent = Node(attributes={"name": "p"})
     db.create_node(parent)
@@ -53,7 +56,8 @@ def test_subtree(tmp_path):
     store = ChunkStore(str(tmp_path / "chunks.json"))
     index = NameIndex(str(tmp_path / "name_index.json"))
     ts = TypeStore(str(tmp_path / "types.json"))
-    db = JsonDB(str(tmp_path / "main.db"), store, index, ts)
+    gindex = GenericIndex(str(tmp_path / "gindex.json"))
+    db = JsonDB(str(tmp_path / "db.json"), store, index, ts, gindex)
 
     root = Node(attributes={"name": "root"})
     db.create_node(root)
@@ -77,7 +81,9 @@ def test_wal_hierarchy(tmp_path):
     store = ChunkStore(str(tmp_path / "chunks.json"))
     index = NameIndex(str(tmp_path / "name_index.json"))
     ts = TypeStore(str(tmp_path / "types.json"))
-    db = JsonDB(str(tmp_path / "main.db"), store, index, ts)
+    gindex = GenericIndex(str(tmp_path / "gindex.json"))
+    db = JsonDB(str(tmp_path / "db.json"), store, index, ts, gindex)
+    
     worker = LeaderWorker(wal, db)
 
     # Create parent
