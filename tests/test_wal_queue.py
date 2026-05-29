@@ -1,9 +1,9 @@
-from opecore.wal.wal_queue import WALQueue
+from opecore.wal.wal_queue import QueueEngine
 import os
 
 
 def test_wal_lifecycle(tmp_path):
-    wal = WALQueue(str(tmp_path))
+    wal = QueueEngine(str(tmp_path))
 
     # user creates work
     work = wal.create_work()

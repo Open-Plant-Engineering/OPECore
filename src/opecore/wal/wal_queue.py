@@ -4,7 +4,7 @@ import uuid
 from opecore.storage.safe import safe_rename
 
 
-class WALQueue:
+class QueueEngine:
     def __init__(self, wal_dir):
         self.wal_dir = wal_dir
         os.makedirs(wal_dir, exist_ok=True)

@@ -1,5 +1,5 @@
 from opecore.model.node import Node
-from opecore.db.json_db import JsonDB
+from opecore.db.json_db import DBEngine
 from opecore.storage.chunk_store import ChunkStore
 from opecore.storage.name_index import NameIndex
 from opecore.storage.type_store import TypeStore
@@ -26,7 +26,7 @@ def test_valid_node(tmp_path):
     })
 
     gindex = GenericIndex(str(tmp_path / "gindex.json"))
-    db = JsonDB(str(tmp_path / "db.json"), cs, ni, ts, gindex)
+    db = DBEngine(str(tmp_path / "db.json"), cs, ni, ts, gindex)
 
     node = Node(attributes={
         "type": "PIPE",
@@ -47,7 +47,7 @@ def test_invalid_attribute(tmp_path):
     })
 
     gindex = GenericIndex(str(tmp_path / "gindex.json"))
-    db = JsonDB(str(tmp_path / "db.json"), cs, ni, ts, gindex)
+    db = DBEngine(str(tmp_path / "db.json"), cs, ni, ts, gindex)
 
     from opecore.model.node import Node
 
@@ -68,7 +68,7 @@ def test_invalid_type(tmp_path):
     ts = TypeStore(str(tmp_path / "types.json"))
 
     gindex = GenericIndex(str(tmp_path / "gindex.json"))
-    db = JsonDB(str(tmp_path / "db.json"), cs, ni, ts, gindex)
+    db = DBEngine(str(tmp_path / "db.json"), cs, ni, ts, gindex)
 
     node = Node(attributes={
         "type": "UNKNOWN",

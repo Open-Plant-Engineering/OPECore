@@ -1,7 +1,7 @@
 import json
 from opecore.model.node import Node
 
-class LeaderWorker:
+class OPEngine:
     def __init__(self, queue, db):
         self.queue = queue
         self.db = db

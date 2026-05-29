@@ -1,8 +1,8 @@
 from opecore.storage.log import AppendOnlyLog
 from opecore.queue.queue import RequestQueue
-from opecore.claims.claims import ClaimManager
+from opecore.claims.claim_engine import ClaimEngine
 from opecore.leader.leader import Leader
-from opecore.leader.worker import LeaderWorker
+from opecore.leader.op_engine import OPEngine
 from opecore.recovery.idempotency import IdempotencyStore
 
 
@@ -11,13 +11,13 @@ def test_no_duplicate_execution(tmp_path):
 
     log = AppendOnlyLog(str(db / "data.log"))
     queue = RequestQueue(str(db / "queue"))
-    claims = ClaimManager(str(db))
+    claims = ClaimEngine(str(db))
     leader = Leader(str(db))
     idem = IdempotencyStore(str(db))
 
     assert leader.try_become_leader()
 
-    worker = LeaderWorker(log, queue, claims, leader, idem)
+    worker = OPEngine(log, queue, claims, leader, idem)
 
     rid = "fixed-id-1"
     

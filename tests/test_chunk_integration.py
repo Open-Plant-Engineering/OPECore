@@ -1,4 +1,4 @@
-from opecore.db.json_db import JsonDB
+from opecore.db.json_db import DBEngine
 from opecore.model.node import Node
 from opecore.storage.chunk_store import ChunkStore
 from opecore.storage.name_index import NameIndex
@@ -12,7 +12,7 @@ def test_node_uses_chunk_store(tmp_path):
     ts = TypeStore(str(tmp_path / "types.json"))
 
     gindex = GenericIndex(str(tmp_path / "gindex.json"))
-    db = JsonDB(str(tmp_path / "db.json"), store, index, ts, gindex)
+    db = DBEngine(str(tmp_path / "db.json"), store, index, ts, gindex)
 
     node = Node(attributes={
         "name": "pipe1",

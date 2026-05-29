@@ -1,8 +1,8 @@
 from opecore.storage.log import AppendOnlyLog
 from opecore.queue.queue import RequestQueue
-from opecore.claims.claims import ClaimManager
+from opecore.claims.claim_engine import ClaimEngine
 from opecore.leader.leader import Leader
-from opecore.leader.worker import LeaderWorker
+from opecore.leader.op_engine import OPEngine
 from opecore.recovery.idempotency import IdempotencyStore
 from opecore.state.store import StateStore
 
@@ -12,14 +12,14 @@ def test_live_state_updates(tmp_path):
 
     log = AppendOnlyLog(str(db / "data.log"))
     queue = RequestQueue(str(db / "queue"))
-    claims = ClaimManager(str(db))
+    claims = ClaimEngine(str(db))
     leader = Leader(str(db))
     idem = IdempotencyStore(str(db))
     state = StateStore(log)
 
     leader.try_become_leader()
 
-    worker = LeaderWorker(log, queue, claims, leader, idem, state)
+    worker = OPEngine(log, queue, claims, leader, idem, state)
 
     # No manual load() call needed
     queue.submit({
@@ -47,14 +47,14 @@ def test_lazy_load_then_live(tmp_path):
     }).encode())
 
     queue = RequestQueue(str(db / "queue"))
-    claims = ClaimManager(str(db))
+    claims = ClaimEngine(str(db))
     leader = Leader(str(db))
     idem = IdempotencyStore(str(db))
     state = StateStore(log)
 
     leader.try_become_leader()
 
-    worker = LeaderWorker(log, queue, claims, leader, idem, state)
+    worker = OPEngine(log, queue, claims, leader, idem, state)
 
     # First read → triggers load
     assert state.get("/init") == 1

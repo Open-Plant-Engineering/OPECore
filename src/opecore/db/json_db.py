@@ -4,7 +4,7 @@ from opecore.storage.safe import safe_write
 from opecore.model.node import Node
 
 
-class JsonDB:
+class DBEngine:
     def __init__(self, db_path, chunk_store, name_index, type_store, generic_index):
         self.db_path = db_path
         self.chunk_store = chunk_store

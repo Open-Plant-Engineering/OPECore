@@ -1,10 +1,10 @@
-from opecore.db.json_db import JsonDB
+from opecore.db.json_db import DBEngine
 from opecore.model.node import Node
 from opecore.db.hierarchy import get_children, get_parent, get_subtree
 from opecore.storage.chunk_store import ChunkStore
 from opecore.storage.name_index import NameIndex
-from opecore.wal.wal_queue import WALQueue
-from opecore.leader.worker import LeaderWorker
+from opecore.wal.wal_queue import QueueEngine
+from opecore.leader.op_engine import OPEngine
 from opecore.storage.type_store import TypeStore
 from opecore.storage.generic_index import GenericIndex
 
@@ -14,7 +14,7 @@ def test_parent_child(tmp_path):
     index = NameIndex(str(tmp_path / "name_index.json"))
     ts = TypeStore(str(tmp_path / "types.json"))
     gindex = GenericIndex(str(tmp_path / "gindex.json"))
-    db = JsonDB(str(tmp_path / "db.json"), store, index, ts, gindex)
+    db = DBEngine(str(tmp_path / "db.json"), store, index, ts, gindex)
 
     parent = Node(attributes={"name": "parent"})
     db.create_node(parent)
@@ -36,7 +36,7 @@ def test_get_parent(tmp_path):
     index = NameIndex(str(tmp_path / "name_index.json"))
     ts = TypeStore(str(tmp_path / "types.json"))
     gindex = GenericIndex(str(tmp_path / "gindex.json"))
-    db = JsonDB(str(tmp_path / "db.json"), store, index, ts, gindex)
+    db = DBEngine(str(tmp_path / "db.json"), store, index, ts, gindex)
 
     parent = Node(attributes={"name": "p"})
     db.create_node(parent)
@@ -57,7 +57,7 @@ def test_subtree(tmp_path):
     index = NameIndex(str(tmp_path / "name_index.json"))
     ts = TypeStore(str(tmp_path / "types.json"))
     gindex = GenericIndex(str(tmp_path / "gindex.json"))
-    db = JsonDB(str(tmp_path / "db.json"), store, index, ts, gindex)
+    db = DBEngine(str(tmp_path / "db.json"), store, index, ts, gindex)
 
     root = Node(attributes={"name": "root"})
     db.create_node(root)
@@ -77,14 +77,14 @@ def test_subtree(tmp_path):
 
 def test_wal_hierarchy(tmp_path):
 
-    wal = WALQueue(str(tmp_path / "wal"))
+    wal = QueueEngine(str(tmp_path / "wal"))
     store = ChunkStore(str(tmp_path / "chunks.json"))
     index = NameIndex(str(tmp_path / "name_index.json"))
     ts = TypeStore(str(tmp_path / "types.json"))
     gindex = GenericIndex(str(tmp_path / "gindex.json"))
-    db = JsonDB(str(tmp_path / "db.json"), store, index, ts, gindex)
+    db = DBEngine(str(tmp_path / "db.json"), store, index, ts, gindex)
     
-    worker = LeaderWorker(wal, db)
+    worker = OPEngine(wal, db)
 
     # Create parent
     work = wal.create_work()

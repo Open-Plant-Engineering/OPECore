@@ -8,7 +8,7 @@ def is_ancestor(parent: str, child: str) -> bool:
     return child.startswith(parent + "/")
 
 
-class ClaimManager:
+class ClaimEngine:
     def __init__(self, db_path: str):
         self.file = os.path.join(db_path, "claims.json")
 

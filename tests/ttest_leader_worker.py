@@ -1,8 +1,8 @@
 from opecore.storage.log import AppendOnlyLog
 from opecore.queue.queue import RequestQueue
-from opecore.claims.claims import ClaimManager
+from opecore.claims.claim_engine import ClaimEngine
 from opecore.leader.leader import Leader
-from opecore.leader.worker import LeaderWorker
+from opecore.leader.op_engine import OPEngine
 from opecore.recovery.idempotency import IdempotencyStore
 
 def test_leader_process_claim(tmp_path):
@@ -10,13 +10,13 @@ def test_leader_process_claim(tmp_path):
 
     log = AppendOnlyLog(str(db / "data.log"))
     queue = RequestQueue(str(db / "queue"))
-    claims = ClaimManager(str(db))
+    claims = ClaimEngine(str(db))
     leader = Leader(str(db))
 
     assert leader.try_become_leader()
 
     idem = IdempotencyStore(str(db))
-    worker = LeaderWorker(log, queue, claims, leader, idem)
+    worker = OPEngine(log, queue, claims, leader, idem)
 
     # Submit request
     queue.submit({
@@ -39,13 +39,13 @@ def test_leader_append(tmp_path):
 
     log = AppendOnlyLog(str(db / "data.log"))
     queue = RequestQueue(str(db / "queue"))
-    claims = ClaimManager(str(db))
+    claims = ClaimEngine(str(db))
     leader = Leader(str(db))
 
     leader.try_become_leader()
 
     idem = IdempotencyStore(str(db))
-    worker = LeaderWorker(log, queue, claims, leader, idem)
+    worker = OPEngine(log, queue, claims, leader, idem)
 
     rid = "test-id-123"
 
@@ -66,21 +66,21 @@ def test_same_request_id_only_executes_once(tmp_path):
     from opecore.recovery.idempotency import IdempotencyStore
     from opecore.storage.log import AppendOnlyLog
     from opecore.queue.queue import RequestQueue
-    from opecore.claims.claims import ClaimManager
+    from opecore.claims.claim_engine import ClaimEngine
     from opecore.leader.leader import Leader
-    from opecore.leader.worker import LeaderWorker
+    from opecore.leader.op_engine import OPEngine
 
     db = tmp_path
 
     log = AppendOnlyLog(str(db / "data.log"))
     queue = RequestQueue(str(db / "queue"))
-    claims = ClaimManager(str(db))
+    claims = ClaimEngine(str(db))
     leader = Leader(str(db))
     idem = IdempotencyStore(str(db))
 
     leader.try_become_leader()
 
-    worker = LeaderWorker(log, queue, claims, leader, idem)
+    worker = OPEngine(log, queue, claims, leader, idem)
 
     rid = "test-id-123"
 
@@ -108,22 +108,22 @@ from opecore.state.store import StateStore
 def test_set_updates_state(tmp_path):
     from opecore.storage.log import AppendOnlyLog
     from opecore.queue.queue import RequestQueue
-    from opecore.claims.claims import ClaimManager
+    from opecore.claims.claim_engine import ClaimEngine
     from opecore.leader.leader import Leader
-    from opecore.leader.worker import LeaderWorker
+    from opecore.leader.op_engine import OPEngine
     from opecore.recovery.idempotency import IdempotencyStore
 
     db = tmp_path
 
     log = AppendOnlyLog(str(db / "data.log"))
     queue = RequestQueue(str(db / "queue"))
-    claims = ClaimManager(str(db))
+    claims = ClaimEngine(str(db))
     leader = Leader(str(db))
     idem = IdempotencyStore(str(db))
 
     leader.try_become_leader()
 
-    worker = LeaderWorker(log, queue, claims, leader, idem)
+    worker = OPEngine(log, queue, claims, leader, idem)
 
     queue.submit({
         "action": "set",
