@@ -235,3 +235,53 @@ def test_range_operator(tmp_path):
 
     assert len(result) == 2
 
+def test_index_lookup(tmp_path):
+    db = setup_db(tmp_path)
+    qe = QueryEngine(db)
+
+    n1 = Node(attributes={"type": "ITEM", "name": "a", "value": 10})
+    db.create_node(n1)
+
+    result = qe.filter({"name": "a"})
+
+    assert len(result) == 1
+
+def test_index_and_condition(tmp_path):
+    db = setup_db(tmp_path)
+    qe = QueryEngine(db)
+
+    n1 = Node(attributes={"type": "ITEM", "name": "a", "value": 10})
+    db.create_node(n1)
+
+    result = qe.filter({
+        "and": [
+            {"name": "a"},
+            {"value": 10}
+        ]
+    })
+
+    assert len(result) == 1
+
+def test_index_no_match(tmp_path):
+    db = setup_db(tmp_path)
+    qe = QueryEngine(db)
+
+    result = qe.filter({"name": "missing"})
+
+    assert len(result) == 0
+
+def test_fallback_scan(tmp_path):
+    db = setup_db(tmp_path)
+    qe = QueryEngine(db)
+
+    n1 = Node(attributes={"type": "ITEM", "name": "a", "value": 10})
+    n2 = Node(attributes={"type": "ITEM", "name": "b", "value": 20})
+
+    db.create_node(n1)
+    db.create_node(n2)
+
+    result = qe.filter({
+        "value": {"gt": 10}
+    })
+
+    assert len(result) == 1

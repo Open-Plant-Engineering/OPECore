@@ -3,11 +3,16 @@ class QueryEngine:
         self.db = db
 
     def filter(self, query: dict):
+        # ✅ try optimized path first
+        candidates = self._get_index_candidates(query)
+
+        # fallback to full scan
+        if candidates is None:
+            candidates = self.db.list_nodes()
+
         result = []
 
-        nodes = self.db.list_nodes()
-
-        for node in nodes:
+        for node in candidates:
             if self._evaluate(node, query):
                 result.append(node)
 
@@ -103,3 +108,31 @@ class QueryEngine:
                 raise ValueError(f"Unknown operator: {op}")
 
         return True
+
+    def _get_index_candidates(self, query):
+        """
+        Try to reduce search space using index.
+        Currently supports:
+        - name equality
+        - name eq inside AND
+        """
+    
+        # ✅ simple case: {"name": "a"}
+        if "name" in query and not isinstance(query["name"], dict):
+            ref = self.db.name_index.get(query["name"])
+            if ref:
+                node = self.db.get_node(ref)
+                return [node]
+            return []
+    
+        # ✅ AND case
+        if "and" in query:
+            for cond in query["and"]:
+                if "name" in cond and not isinstance(cond["name"], dict):
+                    ref = self.db.name_index.get(cond["name"])
+                    if ref:
+                        node = self.db.get_node(ref)
+                        return [node]
+                    return []
+    
+        return None  # fallback
