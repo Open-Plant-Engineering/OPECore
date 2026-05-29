@@ -5,9 +5,10 @@ from opecore.model.node import Node
 
 
 class JsonDB:
-    def __init__(self, db_path: str, chunk_store):
+    def __init__(self, db_path: str, chunk_store, name_index):
         self.db_path = db_path
         self.chunk_store = chunk_store
+        self.name_index = name_index
 
         if not os.path.exists(db_path):
             safe_write(db_path, json.dumps({"nodes": {}}).encode())
@@ -67,6 +68,13 @@ class JsonDB:
     def create_node(self, node: Node):
         db = self.load()
 
+        # ✅ extract name
+        name = node.attributes.get("name")
+
+        if name:
+            if self.name_index.exists(name):
+                raise ValueError(f"Duplicate name: {name}")
+
         encoded = self._encode_attributes(node.attributes)
 
         if node.refno in db["nodes"]:
@@ -75,6 +83,11 @@ class JsonDB:
         db["nodes"][node.refno] = encoded
 
         self.save(db)
+
+        # ✅ update index AFTER successful write
+        if name:
+            self.name_index.put(name, node.refno)
+
         return node.refno
 
     # ✅ READ
@@ -96,6 +109,22 @@ class JsonDB:
         if node.refno not in db["nodes"]:
             raise ValueError("Node not found")
 
+        old_node = self.get_node(node.refno)
+
+        old_name = old_node.attributes.get("name")
+        new_name = node.attributes.get("name")
+
+        # ✅ name change
+        if old_name != new_name:
+            if new_name and self.name_index.exists(new_name):
+                raise ValueError(f"Duplicate name: {new_name}")
+
+            if old_name:
+                self.name_index.remove(old_name)
+
+            if new_name:
+                self.name_index.put(new_name, node.refno)
+
         encoded = self._encode_attributes(node.attributes)
 
         db["nodes"][node.refno] = encoded
@@ -105,6 +134,13 @@ class JsonDB:
     # ✅ DELETE
     def delete_node(self, refno: str):
         db = self.load()
+
+        node = self.get_node(refno)
+
+        if node:
+            name = node.attributes.get("name")
+            if name:
+                self.name_index.remove(name)
 
         if refno in db["nodes"]:
             del db["nodes"][refno]
@@ -121,3 +157,11 @@ class JsonDB:
             result.append(Node.from_dict(decoded))
 
         return result
+
+    def get_by_name(self, name: str):
+        refno = self.name_index.get(name)
+    
+        if not refno:
+            return None
+    
+        return self.get_node(refno)

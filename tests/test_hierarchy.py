@@ -2,10 +2,14 @@ from opecore.db.json_db import JsonDB
 from opecore.model.node import Node
 from opecore.db.hierarchy import get_children, get_parent, get_subtree
 from opecore.storage.chunk_store import ChunkStore
+from opecore.storage.name_index import NameIndex
+from opecore.wal.wal_queue import WALQueue
+from opecore.leader.worker import LeaderWorker
 
 def test_parent_child(tmp_path):
     store = ChunkStore(str(tmp_path / "chunks.json"))
-    db = JsonDB(str(tmp_path / "main.db"), store)
+    index = NameIndex(str(tmp_path / "name_index.json"))
+    db = JsonDB(str(tmp_path / "main.db"), store, index)
 
     parent = Node(attributes={"name": "parent"})
     db.create_node(parent)
@@ -24,7 +28,8 @@ def test_parent_child(tmp_path):
 
 def test_get_parent(tmp_path):
     store = ChunkStore(str(tmp_path / "chunks.json"))
-    db = JsonDB(str(tmp_path / "main.db"), store)
+    index = NameIndex(str(tmp_path / "name_index.json"))
+    db = JsonDB(str(tmp_path / "main.db"), store, index)
 
     parent = Node(attributes={"name": "p"})
     db.create_node(parent)
@@ -42,7 +47,8 @@ def test_get_parent(tmp_path):
 
 def test_subtree(tmp_path):
     store = ChunkStore(str(tmp_path / "chunks.json"))
-    db = JsonDB(str(tmp_path / "main.db"), store)
+    index = NameIndex(str(tmp_path / "name_index.json"))
+    db = JsonDB(str(tmp_path / "main.db"), store, index)
 
     root = Node(attributes={"name": "root"})
     db.create_node(root)
@@ -61,14 +67,11 @@ def test_subtree(tmp_path):
     assert len(subtree) == 3
 
 def test_wal_hierarchy(tmp_path):
-    from opecore.wal.wal_queue import WALQueue
-    from opecore.leader.worker import LeaderWorker
-    from opecore.db.json_db import JsonDB
-    from opecore.db.hierarchy import get_children
 
     wal = WALQueue(str(tmp_path / "wal"))
     store = ChunkStore(str(tmp_path / "chunks.json"))
-    db = JsonDB(str(tmp_path / "main.db"), store)
+    index = NameIndex(str(tmp_path / "name_index.json"))
+    db = JsonDB(str(tmp_path / "main.db"), store, index)
     worker = LeaderWorker(wal, db)
 
     # Create parent
