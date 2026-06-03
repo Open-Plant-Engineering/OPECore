@@ -1,9 +1,13 @@
 import uuid
+
 from opecore.core.attr_def import ATTR_TYPES, REQUIRED_ATTRS, Attr
 from opecore.core.claim_service import ClaimService
+from opecore.core.read_service import ReadService
 from opecore.models.exceptions import (
-    ValidationError, VersionConflictError
+    ValidationError,
+    VersionConflictError
 )
+from opecore.models.exceptions import NodeDeletedError
 
 class NodeService:
 
@@ -40,25 +44,48 @@ class NodeService:
 
         return node_id
 
+
     # -------------------------
-    # UPDATE NODE
+    # UPDATE NODE (STRICT)
     # -------------------------
     def update_node(self, node_id, user, base_version, changes):
+
+        reader = ReadService(self.conn)
 
         with self.conn.transaction():
             with self.conn.cursor() as cur:
 
                 ClaimService.validate(self.conn, node_id, user)
 
+                # check node exists
                 cur.execute("""
                 SELECT current_version FROM nodes WHERE node_id=%s
                 """, (node_id,))
-
-                current_version = cur.fetchone()["current_version"]
-
+                row = cur.fetchone()
+                
+                if not row:
+                    raise Exception("Node not found")
+                
+                current_version = row["current_version"]
+                
+                # ✅ FIRST: check if node is deleted
+                node_state = reader.get_node(node_id)
+                if node_state is None:
+                    raise NodeDeletedError("Node already deleted")
+                
+                # ✅ THEN: version check
                 if current_version != base_version:
-                    raise VersionConflictError("Version mismatch")
+                    raise VersionConflictError(
+                        "Version mismatch, refresh required"
+                    )
 
+                # check node not deleted
+                node_state = reader.get_node(node_id)
+
+                if node_state is None:
+                    raise NodeDeletedError("Node already deleted")
+
+                # create new version
                 cur.execute("""
                 INSERT INTO versions(node_id, parent_version, created_by)
                 VALUES (%s, %s, %s)
@@ -75,24 +102,48 @@ class NodeService:
 
         return new_version
 
+
     # -------------------------
     # DELETE NODE
     # -------------------------
-    def delete_node(self, node_id, user, version):
-        return self.update_node(node_id, user, version, {
-            Attr.DELETED: True
-        })
+    def delete_node(self, node_id, user, base_version):
+        return self.update_node(
+            node_id,
+            user,
+            base_version,
+            {Attr.DELETED: True}
+        )
+
 
     # -------------------------
     # DELETE ATTRIBUTE
     # -------------------------
     def delete_attr(self, node_id, user, base_version, attr_id):
 
+        reader = ReadService(self.conn)
+
         with self.conn.transaction():
             with self.conn.cursor() as cur:
 
                 ClaimService.validate(self.conn, node_id, user)
 
+                cur.execute("""
+                SELECT current_version FROM nodes WHERE node_id=%s
+                """, (node_id,))
+                current_version = cur.fetchone()["current_version"]
+
+                # STRICT VERSION CHECK
+                if current_version != base_version:
+                    raise VersionConflictError(
+                        "Version mismatch, refresh required"
+                    )
+
+                # check node not deleted
+                node_state = reader.get_node(node_id)
+                if node_state is None:
+                    raise NodeDeletedError("Node already deleted")
+
+                # create new version
                 cur.execute("""
                 INSERT INTO versions(node_id, parent_version, created_by)
                 VALUES (%s, %s, %s)
@@ -109,8 +160,11 @@ class NodeService:
                 UPDATE nodes SET current_version=%s WHERE node_id=%s
                 """, (version, node_id))
 
+        return version
+
+
     # -------------------------
-    # INSERT ATTRIBUTES
+    # INSERT ATTRS
     # -------------------------
     def _insert_attrs(self, cur, node_id, version_id, attrs):
 
@@ -118,13 +172,19 @@ class NodeService:
             dtype = ATTR_TYPES[attr_id]
 
             if dtype == "num":
-                cur.execute("INSERT INTO attr_num VALUES (%s,%s,%s,%s)",
-                            (node_id, version_id, attr_id, value))
+                cur.execute(
+                    "INSERT INTO attr_num VALUES (%s,%s,%s,%s)",
+                    (node_id, version_id, attr_id, value)
+                )
 
             elif dtype == "str":
-                cur.execute("INSERT INTO attr_str VALUES (%s,%s,%s,%s)",
-                            (node_id, version_id, attr_id, value))
+                cur.execute(
+                    "INSERT INTO attr_str VALUES (%s,%s,%s,%s)",
+                    (node_id, version_id, attr_id, value)
+                )
 
             elif dtype == "bool":
-                cur.execute("INSERT INTO attr_bool VALUES (%s,%s,%s,%s)",
-                            (node_id, version_id, attr_id, value))
+                cur.execute(
+                    "INSERT INTO attr_bool VALUES (%s,%s,%s,%s)",
+                    (node_id, version_id, attr_id, value)
+                )

@@ -12,3 +12,6 @@ class ValidationError(OPEException):
 
 class NotFoundError(OPEException):
     pass
+
+class NodeDeletedError(OPEException):
+    pass
