@@ -8,8 +8,12 @@ class ClaimService:
             cur.execute("""
             INSERT INTO claims(node_id, claimed_by, claimed_at)
             VALUES (%s, %s, now())
-            ON CONFLICT (node_id) DO NOTHING
+            ON CONFLICT (node_id)
+            DO UPDATE SET
+                claimed_by = EXCLUDED.claimed_by,
+                claimed_at = EXCLUDED.claimed_at
             """, (node_id, user))
+        conn.commit()
 
     @staticmethod
     def release(conn, node_id, user):
@@ -18,6 +22,7 @@ class ClaimService:
             DELETE FROM claims
             WHERE node_id=%s AND claimed_by=%s
             """, (node_id, user))
+        conn.commit()
 
     @staticmethod
     def validate(conn, node_id, user):
