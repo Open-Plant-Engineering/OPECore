@@ -5,9 +5,11 @@ from opecore.core.claim_service import ClaimService
 from opecore.core.read_service import ReadService
 from opecore.models.exceptions import (
     ValidationError,
-    VersionConflictError
+    VersionConflictError,
+    NodeDeletedError
 )
-from opecore.models.exceptions import NodeDeletedError
+from opecore.core import cache
+
 
 class NodeService:
 
@@ -44,9 +46,8 @@ class NodeService:
 
         return node_id
 
-
     # -------------------------
-    # UPDATE NODE (STRICT)
+    # UPDATE NODE
     # -------------------------
     def update_node(self, node_id, user, base_version, changes):
 
@@ -62,28 +63,22 @@ class NodeService:
                 SELECT current_version FROM nodes WHERE node_id=%s
                 """, (node_id,))
                 row = cur.fetchone()
-                
+
                 if not row:
                     raise Exception("Node not found")
-                
+
                 current_version = row["current_version"]
-                
-                # ✅ FIRST: check if node is deleted
-                node_state = reader.get_node(node_id)
+
+                # ✅ always read fresh state (bypass cache)
+                node_state = reader.get_node(node_id, use_cache=False)
                 if node_state is None:
                     raise NodeDeletedError("Node already deleted")
-                
-                # ✅ THEN: version check
+
+                # ✅ strict version check
                 if current_version != base_version:
                     raise VersionConflictError(
                         "Version mismatch, refresh required"
                     )
-
-                # check node not deleted
-                node_state = reader.get_node(node_id)
-
-                if node_state is None:
-                    raise NodeDeletedError("Node already deleted")
 
                 # create new version
                 cur.execute("""
@@ -100,8 +95,10 @@ class NodeService:
                 UPDATE nodes SET current_version=%s WHERE node_id=%s
                 """, (new_version, node_id))
 
-        return new_version
+        # ✅ invalidate cache AFTER commit
+        cache.delete_prefix(f"node:{node_id}")
 
+        return new_version
 
     # -------------------------
     # DELETE NODE
@@ -113,7 +110,6 @@ class NodeService:
             base_version,
             {Attr.DELETED: True}
         )
-
 
     # -------------------------
     # DELETE ATTRIBUTE
@@ -132,14 +128,14 @@ class NodeService:
                 """, (node_id,))
                 current_version = cur.fetchone()["current_version"]
 
-                # STRICT VERSION CHECK
+                # strict version check
                 if current_version != base_version:
                     raise VersionConflictError(
                         "Version mismatch, refresh required"
                     )
 
-                # check node not deleted
-                node_state = reader.get_node(node_id)
+                # ✅ bypass cache here as well
+                node_state = reader.get_node(node_id, use_cache=False)
                 if node_state is None:
                     raise NodeDeletedError("Node already deleted")
 
@@ -160,11 +156,13 @@ class NodeService:
                 UPDATE nodes SET current_version=%s WHERE node_id=%s
                 """, (version, node_id))
 
+        # ✅ invalidate cache AFTER commit
+        cache.delete_prefix(f"node:{node_id}")
+
         return version
 
-
     # -------------------------
-    # INSERT ATTRS
+    # INSERT ATTRIBUTES
     # -------------------------
     def _insert_attrs(self, cur, node_id, version_id, attrs):
 

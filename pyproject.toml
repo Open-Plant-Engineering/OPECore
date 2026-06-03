@@ -12,7 +12,8 @@ authors = [
     { name = "Shivang Kheradiya" }
 ]
 dependencies = [
-    "psycopg[binary]>=3.1"
+    "psycopg[binary]>=3.1",
+    "redis"
 ]
 
 [project.optional-dependencies]

@@ -1,4 +1,6 @@
 from opecore.core.attr_def import ATTR_TYPES, Attr
+from opecore.core import cache
+
 
 class ReadService:
 
@@ -19,10 +21,18 @@ class ReadService:
     # -------------------------
     # GET NODE (SNAPSHOT)
     # -------------------------
-    def get_node(self, node_id, snapshot_version=None):
+    def get_node(self, node_id, snapshot_version=None, use_cache=True):
 
         if snapshot_version is None:
             snapshot_version = self.get_current_version(node_id)
+
+        cache_key = f"node:{node_id}:{snapshot_version}"
+
+        # ✅ use cache only when allowed
+        if use_cache:
+            cached = cache.get(cache_key)
+            if cached is not None:
+                return cached
 
         result = {}
         deleted_attrs = set()
@@ -37,7 +47,6 @@ class ReadService:
             for attr_id in self._get_deleted_attrs(node_id, version):
                 deleted_attrs.add(attr_id)
 
-                # remove if already added earlier
                 if attr_id in result:
                     result.pop(attr_id)
 
@@ -54,12 +63,18 @@ class ReadService:
             # 3. Check node deletion
             # ---------
             if result.get(Attr.DELETED) is True:
+                if use_cache:
+                    cache.set(cache_key, None)
                 return None
 
             # ---------
             # 4. Move to parent
             # ---------
             version = self._get_parent(version)
+
+        # ✅ cache final result
+        if use_cache:
+            cache.set(cache_key, result)
 
         return result
 
@@ -125,8 +140,11 @@ class ReadService:
             row = cur.fetchone()
             return row["parent_version"] if row else None
 
+    # -------------------------
+    # QUERY EXAMPLE
+    # -------------------------
     def query_pressure_gt(self, value):
-    
+
         with self.conn.cursor() as cur:
             cur.execute("""
             SELECT node_id
@@ -136,6 +154,5 @@ class ReadService:
             AND a.value > %s
             AND a.version_id = n.current_version
             """, (Attr.PRESSURE, value))
-    
+
             return [r["node_id"] for r in cur.fetchall()]
-    
