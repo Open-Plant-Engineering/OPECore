@@ -12,7 +12,13 @@ r = redis.Redis(host="localhost", port=6379, decode_responses=True, protocol=2)
 def get(key: str):
     data = r.get(key)
     if data:
-        return json.loads(data)
+        print("✅ CACHE HIT:", key)
+        obj = json.loads(data)
+        # ✅ FIX: convert keys back to int
+        if isinstance(obj, dict):
+            return {int(k): v for k, v in obj.items()}
+        return obj
+    print("❌ CACHE MISS:", key)
     return None
 
 
