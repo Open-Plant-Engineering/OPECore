@@ -21,18 +21,38 @@ from opecore.db.connection import DBConnection
 
 DB = "opecore_test_api_conflict"
 
+"""
+TEST PURPOSE:
+-------------
+Verify version conflict behavior via API.
+
+Scenario:
+---------
+1. User1 creates and updates node → creates new version (v2)
+2. User2 tries to update using OLD version (v1)
+3. System must reject with HTTP 409
+
+This ensures:
+✅ strict version enforcement
+✅ no stale updates allowed
+"""
 
 def test_api_version_conflict():
 
     # ----------------------------
-    # 1. RESET DB
+    # 1. RESET DB (direct PostgreSQL)
     # ----------------------------
     reset_database(DB)
 
-    dsn = f"postgresql://postgres:postgres@localhost:5432/{DB}"
+    # Direct DB connection (for schema + reads)
+    direct_dsn = f"postgresql://postgres:postgres@localhost:5432/{DB}"
 
-    DBConnection(dsn).init_db()
-    client = create_test_client(dsn)
+    DBConnection(direct_dsn).init_db()
+
+    # PgBouncer connection (for API)
+    pgbouncer_dsn = f"postgresql://postgres@127.0.0.1:6432/{DB}"
+
+    client = create_test_client(pgbouncer_dsn)
 
     user1 = "user1"
     user2 = "user2"
@@ -63,10 +83,11 @@ def test_api_version_conflict():
     assert res.status_code == 200
 
     # ----------------------------
-    # 4. GET VERSION v1
+    # 4. GET VERSION v1 (direct DB)
     # ----------------------------
-    conn = DBConnection(dsn).get_conn()
+    conn = DBConnection(direct_dsn).get_conn()
     cur = conn.cursor()
+
     cur.execute(
         "SELECT current_version FROM nodes WHERE node_id=%s",
         (node_id,)

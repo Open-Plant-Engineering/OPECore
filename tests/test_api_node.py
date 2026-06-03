@@ -155,3 +155,52 @@ def test_full_api_flow():
     })
 
     assert res.status_code == 200
+
+
+
+def test_full_api_flow1():
+
+    # ----------------------------
+    # 1. RESET DATABASE
+    # ----------------------------
+    reset_database(DB)
+
+    # init schema using direct DB
+    direct_dsn = f"postgresql://postgres:postgres@localhost:5432/{DB}"
+    DBConnection(direct_dsn).init_db()
+
+    # API uses PgBouncer
+    pgbouncer_dsn = f"postgresql://postgres@127.0.0.1:6432/{DB}"
+
+    client = create_test_client(pgbouncer_dsn)
+
+    user = "user1"
+
+    # CREATE
+    res = client.post("/node/create", json={
+        "class_id": 1,
+        "attrs": {"1": "PumpA", "2": "Plant1", "3": "Pump", "4": 5.0},
+        "user": user
+    })
+    assert res.status_code == 200
+
+    node_id = res.json()["node_id"]
+
+    # CLAIM
+    res = client.post("/node/claim", json={"node_id": node_id, "user": user})
+    assert res.status_code == 200
+
+    # GET VERSION
+    conn = DBConnection(direct_dsn).get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT current_version FROM nodes WHERE node_id=%s", (node_id,))
+    v = cur.fetchone()["current_version"]
+
+    # UPDATE
+    res = client.post("/node/update", json={
+        "node_id": node_id,
+        "user": user,
+        "base_version": v,
+        "changes": {"4": 25.0}
+    })
+    assert res.status_code == 200

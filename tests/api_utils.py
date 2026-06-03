@@ -1,3 +1,11 @@
+"""
+Purpose:
+--------
+Creates FastAPI test client with injected DB connection.
+
+Used by all API tests.
+"""
+
 from fastapi.testclient import TestClient
 from opecore.api.main import app
 from opecore.api.deps import init_db
