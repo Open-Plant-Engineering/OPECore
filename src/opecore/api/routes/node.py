@@ -6,9 +6,10 @@ from opecore.api.schemas.node import (
     UpdateNodeRequest,
     DeleteNodeRequest,
     ClaimRequest,
-    DeleteAttrRequest
+    DeleteAttrRequest,
+    BulkRequest,
 )
-
+from opecore.core.bulk_service import BulkService
 from opecore.core.node_service import NodeService
 from opecore.core.read_service import ReadService
 from opecore.core.claim_service import ClaimService
@@ -128,3 +129,31 @@ def get_node(node_id: str, conn=Depends(get_conn)):
     data = read.get_node(node_id)
 
     return {"data": data}
+
+@router.post("/bulk")
+def bulk_operations(req: BulkRequest, conn=Depends(get_conn)):
+
+    service = BulkService(conn)
+
+    try:
+        result = service.execute(
+            req.user,
+            [op.model_dump() for op in req.operations]   # ✅ convert schema → dict
+        )
+
+        return {
+            "status": "success",
+            "results": result
+        }
+
+    except VersionConflictError as e:
+        raise HTTPException(409, str(e))
+
+    except NodeDeletedError as e:
+        raise HTTPException(410, str(e))
+
+    except ClaimError as e:
+        raise HTTPException(403, str(e))
+
+    except ValidationError as e:
+        raise HTTPException(400, str(e))

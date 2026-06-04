@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Dict, Any
+from typing import Dict, Any, Optional, List
 
 class CreateNodeRequest(BaseModel):
     class_id: int
@@ -30,3 +30,19 @@ class DeleteAttrRequest(BaseModel):
     user: str
     base_version: int
     attr_id: int
+
+class BulkOperation(BaseModel):
+    type: str
+
+    # common fields (optional depending on type)
+    node_id: Optional[str] = None
+    class_id: Optional[int] = None
+    base_version: Optional[int] = None
+
+    attrs: Optional[Dict[int, str]] = None
+    changes: Optional[Dict[int, float]] = None
+    attr_id: Optional[int] = None
+
+class BulkRequest(BaseModel):
+    user: str
+    operations: List[BulkOperation]
