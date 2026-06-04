@@ -41,9 +41,12 @@ def create_node(req: CreateNodeRequest, conn=Depends(get_conn)):
 @router.post("/claim")
 def claim_node(req: ClaimRequest, conn=Depends(get_conn)):
 
-    ClaimService.claim(conn, req.node_id, req.user)
+    try:
+        ClaimService.claim(conn, req.node_id, req.user)
+        return {"status": "claimed"}
 
-    return {"status": "claimed"}
+    except ClaimError as e:
+        raise HTTPException(403, str(e))
 
 
 # ✅ RELEASE NODE
