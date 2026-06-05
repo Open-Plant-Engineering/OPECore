@@ -24,12 +24,15 @@ from opecore.core.node_service import NodeService
 from opecore.core.read_service import ReadService
 from opecore.core.claim_service import ClaimService
 from opecore.core.attr_def import Attr
+from tests.api_utils import create_test_client, get_auth_headers
+from opecore.core import cache
 
 
 DB = "opecore_cache_test"
 
 
 def test_cache_behavior():
+    cache.clear()
 
     # ----------------------------
     # 1. RESET DB

@@ -3,33 +3,29 @@ from typing import Dict, Any, Optional, List
 
 class CreateNodeRequest(BaseModel):
     class_id: int
-    attrs: Dict[int, Any]
-    user: str
+    attrs: Dict[str, Any]
 
 
 class UpdateNodeRequest(BaseModel):
     node_id: str
-    user: str
     base_version: int
-    changes: Dict[int, Any]
+    changes: Dict[str, Any]
 
 
 class DeleteNodeRequest(BaseModel):
     node_id: str
-    user: str
     base_version: int
 
 
 class ClaimRequest(BaseModel):
     node_id: str
-    user: str
 
 
 class DeleteAttrRequest(BaseModel):
     node_id: str
-    user: str
     base_version: int
-    attr_id: int
+    attr_id: str
+
 
 class BulkOperation(BaseModel):
     type: str
@@ -39,10 +35,10 @@ class BulkOperation(BaseModel):
     class_id: Optional[int] = None
     base_version: Optional[int] = None
 
-    attrs: Optional[Dict[int, str]] = None
-    changes: Optional[Dict[int, float]] = None
-    attr_id: Optional[int] = None
+    attrs: Optional[Dict[str, Any]] = None
+    changes: Optional[Dict[str, Any]] = None
+    attr_id: Optional[str] = None
+
 
 class BulkRequest(BaseModel):
-    user: str
     operations: List[BulkOperation]

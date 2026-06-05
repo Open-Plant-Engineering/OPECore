@@ -18,7 +18,7 @@ Ensures:
 """
 
 from tests.db_utils import reset_database
-from tests.api_utils import create_test_client
+from tests.api_utils import create_test_client, get_auth_headers
 
 from opecore.db.connection import DBConnection
 
@@ -39,7 +39,7 @@ def test_full_api_flow():
     client = create_test_client(dsn)
 
     user = "user1"
-
+    headers = get_auth_headers(client, user)
     # ----------------------------
     # 2. CREATE NODE
     # ----------------------------
@@ -50,9 +50,8 @@ def test_full_api_flow():
             "2": "Plant1",
             "3": "Pump",
             "4": 5.0
-        },
-        "user": user
-    })
+        }
+    }, headers=headers)
 
     assert res.status_code == 200
     node_id = res.json()["node_id"]
@@ -62,8 +61,7 @@ def test_full_api_flow():
     # ----------------------------
     res = client.post("/node/claim", json={
         "node_id": node_id,
-        "user": user
-    })
+    }, headers=headers)
     assert res.status_code == 200
 
     # ----------------------------
@@ -82,12 +80,11 @@ def test_full_api_flow():
     # ----------------------------
     res = client.post("/node/update", json={
         "node_id": node_id,
-        "user": user,
         "base_version": version,
         "changes": {
             "4": 25.0
         }
-    })
+    }, headers=headers)
 
     assert res.status_code == 200
 
@@ -110,10 +107,9 @@ def test_full_api_flow():
 
     res = client.post("/node/delete-attr", json={
         "node_id": node_id,
-        "user": user,
         "base_version": version,
-        "attr_id": 4
-    })
+        "attr_id": "4"
+    }, headers=headers)
 
     assert res.status_code == 200
 
@@ -134,9 +130,8 @@ def test_full_api_flow():
 
     res = client.post("/node/delete", json={
         "node_id": node_id,
-        "user": user,
         "base_version": version
-    })
+    }, headers=headers)
 
     assert res.status_code == 200
 
@@ -151,8 +146,7 @@ def test_full_api_flow():
     # ----------------------------
     res = client.post("/node/release", json={
         "node_id": node_id,
-        "user": user
-    })
+    }, headers=headers)
 
     assert res.status_code == 200
 
@@ -175,19 +169,22 @@ def test_full_api_flow1():
     client = create_test_client(pgbouncer_dsn)
 
     user = "user1"
+    headers = get_auth_headers(client, user)
 
     # CREATE
     res = client.post("/node/create", json={
         "class_id": 1,
-        "attrs": {"1": "PumpA", "2": "Plant1", "3": "Pump", "4": 5.0},
-        "user": user
-    })
+        "attrs": {"1": "PumpA", "2": "Plant1", "3": "Pump", "4": 5.0}
+    }, headers=headers)
+
     assert res.status_code == 200
 
     node_id = res.json()["node_id"]
 
     # CLAIM
-    res = client.post("/node/claim", json={"node_id": node_id, "user": user})
+    res = client.post("/node/claim", json={
+        "node_id": node_id,
+        }, headers= headers)
     assert res.status_code == 200
 
     # GET VERSION
@@ -199,8 +196,7 @@ def test_full_api_flow1():
     # UPDATE
     res = client.post("/node/update", json={
         "node_id": node_id,
-        "user": user,
         "base_version": v,
         "changes": {"4": 25.0}
-    })
+    }, headers=headers)
     assert res.status_code == 200

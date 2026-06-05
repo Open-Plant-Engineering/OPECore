@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 
+from opecore.api.deps_auth import get_current_user
 from opecore.api.deps import get_conn
 from opecore.api.schemas.node import (
     CreateNodeRequest,
@@ -25,12 +26,16 @@ router = APIRouter(prefix="/node", tags=["Node"])
 
 # ✅ CREATE NODE
 @router.post("/create")
-def create_node(req: CreateNodeRequest, conn=Depends(get_conn)):
-
+def create_node(
+    req: CreateNodeRequest,
+    user=Depends(get_current_user),
+    conn=Depends(get_conn)
+):
+    
     service = NodeService(conn)
 
     try:
-        node_id = service.create_node(req.class_id, req.attrs, req.user)
+        node_id = service.create_node(req.class_id, req.attrs, user)
         return {"node_id": node_id}
 
     except ValidationError as e:
@@ -39,10 +44,14 @@ def create_node(req: CreateNodeRequest, conn=Depends(get_conn)):
 
 # ✅ CLAIM NODE
 @router.post("/claim")
-def claim_node(req: ClaimRequest, conn=Depends(get_conn)):
+def claim_node(
+    req: ClaimRequest,
+    user=Depends(get_current_user),
+    conn=Depends(get_conn)
+):
 
     try:
-        ClaimService.claim(conn, req.node_id, req.user)
+        ClaimService.claim(conn, req.node_id, user)
         return {"status": "claimed"}
 
     except ClaimError as e:
@@ -51,27 +60,33 @@ def claim_node(req: ClaimRequest, conn=Depends(get_conn)):
 
 # ✅ RELEASE NODE
 @router.post("/release")
-def release_node(req: ClaimRequest, conn=Depends(get_conn)):
+def release_node(req: ClaimRequest, user=Depends(get_current_user), conn=Depends(get_conn)):
 
-    ClaimService.release(conn, req.node_id, req.user)
+    ClaimService.release(conn, req.node_id, user)
 
     return {"status": "released"}
 
 
 # ✅ UPDATE NODE
-@router.post("/update")
-def update_node(req: UpdateNodeRequest, conn=Depends(get_conn)):
+@router.post("/bulk")
+def bulk_operations(
+    req: BulkRequest,
+    user=Depends(get_current_user),
+    conn=Depends(get_conn)
+):
 
-    service = NodeService(conn)
+    service = BulkService(conn)
 
     try:
-        version = service.update_node(
-            req.node_id,
-            req.user,
-            req.base_version,
-            req.changes
+        result = service.execute(
+            user,   # ✅ inject JWT user
+            [op.model_dump() for op in req.operations]
         )
-        return {"version": version}
+
+        return {
+            "status": "success",
+            "results": result
+        }
 
     except VersionConflictError as e:
         raise HTTPException(409, str(e))
@@ -82,17 +97,19 @@ def update_node(req: UpdateNodeRequest, conn=Depends(get_conn)):
     except ClaimError as e:
         raise HTTPException(403, str(e))
 
+    except ValidationError as e:
+        raise HTTPException(400, str(e))
 
 # ✅ DELETE NODE
 @router.post("/delete")
-def delete_node(req: DeleteNodeRequest, conn=Depends(get_conn)):
+def delete_node(req: DeleteNodeRequest, user=Depends(get_current_user), conn=Depends(get_conn)):
 
     service = NodeService(conn)
 
     try:
         version = service.delete_node(
             req.node_id,
-            req.user,
+            user,
             req.base_version
         )
         return {"version": version}
@@ -106,14 +123,14 @@ def delete_node(req: DeleteNodeRequest, conn=Depends(get_conn)):
 
 # ✅ DELETE ATTRIBUTE
 @router.post("/delete-attr")
-def delete_attr(req: DeleteAttrRequest, conn=Depends(get_conn)):
+def delete_attr(req: DeleteAttrRequest, user=Depends(get_current_user), conn=Depends(get_conn)):
 
     service = NodeService(conn)
 
     try:
         version = service.delete_attr(
             req.node_id,
-            req.user,
+            user,
             req.base_version,
             req.attr_id
         )
@@ -134,13 +151,13 @@ def get_node(node_id: str, conn=Depends(get_conn)):
     return {"data": data}
 
 @router.post("/bulk")
-def bulk_operations(req: BulkRequest, conn=Depends(get_conn)):
+def bulk_operations(req: BulkRequest, user=Depends(get_current_user), conn=Depends(get_conn)):
 
     service = BulkService(conn)
 
     try:
         result = service.execute(
-            req.user,
+            user,
             [op.model_dump() for op in req.operations]   # ✅ convert schema → dict
         )
 
@@ -148,6 +165,40 @@ def bulk_operations(req: BulkRequest, conn=Depends(get_conn)):
             "status": "success",
             "results": result
         }
+
+    except VersionConflictError as e:
+        raise HTTPException(409, str(e))
+
+    except NodeDeletedError as e:
+        raise HTTPException(410, str(e))
+
+    except ClaimError as e:
+        raise HTTPException(403, str(e))
+
+    except ValidationError as e:
+        raise HTTPException(400, str(e))
+
+# ✅ UPDATE NODE
+@router.post("/update")
+def update_node(
+    req: UpdateNodeRequest,
+    user=Depends(get_current_user),
+    conn=Depends(get_conn)
+):
+    service = NodeService(conn)
+
+    try:
+        # ✅ FIX: convert keys
+        changes = req.changes
+
+        version = service.update_node(
+            req.node_id,
+            user,
+            req.base_version,
+            changes
+        )
+
+        return {"version": version}
 
     except VersionConflictError as e:
         raise HTTPException(409, str(e))

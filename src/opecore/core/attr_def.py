@@ -1,10 +1,10 @@
 class Attr:
-    NAME = 1
-    OWNER = 2
-    TYPE = 3
-    PRESSURE = 4
-    ACTIVE = 5
-    DELETED = 999
+    NAME = "1"
+    OWNER = "2"
+    TYPE = "3"
+    PRESSURE = "4"
+    ACTIVE = "5"
+    DELETED = "999"
 
 
 ATTR_TYPES = {

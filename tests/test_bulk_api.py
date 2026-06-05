@@ -17,14 +17,16 @@ This ensures:
 """
 
 from tests.db_utils import reset_database
-from tests.api_utils import create_test_client
+from tests.api_utils import create_test_client, get_auth_headers
 from opecore.db.connection import DBConnection
+from opecore.core import cache
 
 
 DB = "opecore_bulk_test"
 
 
 def test_bulk_api():
+    cache.clear()
 
     # ----------------------------
     # 1. RESET DATABASE
@@ -37,12 +39,12 @@ def test_bulk_api():
     client = create_test_client(dsn)
 
     user = "user1"
+    headers = get_auth_headers(client, user)
 
     # ----------------------------
     # 2. BULK CREATE
     # ----------------------------
     res = client.post("/node/bulk", json={
-        "user": user,
         "operations": [
             {
                 "type": "create",
@@ -63,7 +65,7 @@ def test_bulk_api():
                 }
             }
         ]
-    })
+    }, headers=headers )
 
     assert res.status_code == 200
     results = res.json()["results"]
@@ -76,8 +78,7 @@ def test_bulk_api():
     # ----------------------------
     client.post("/node/claim", json={
         "node_id": node1,
-        "user": user
-    })
+    }, headers=headers)
 
     # ----------------------------
     # 4. GET VERSION
@@ -93,7 +94,6 @@ def test_bulk_api():
     # ----------------------------
     # first perform update only
     res = client.post("/node/bulk", json={
-        "user": user,
         "operations": [
             {
                 "type": "update",
@@ -104,23 +104,22 @@ def test_bulk_api():
                 }
             }
         ]
-    })
+    }, headers=headers )
     
     assert res.status_code == 200
     new_version = res.json()["results"][0]["version"]
     
     # now delete_attr using correct version
     res = client.post("/node/bulk", json={
-        "user": user,
         "operations": [
             {
                 "type": "delete_attr",
                 "node_id": node1,
                 "base_version": new_version,
-                "attr_id": 2
+                "attr_id": "2"
             }
         ]
-    })
+    }, headers=headers )
     
 
     assert res.status_code == 200
@@ -143,8 +142,7 @@ def test_bulk_api():
     # ----------------------------
     res = client.post("/node/claim", json={
         "node_id": node2,
-        "user": user
-    })
+    }, headers=headers)
 
     assert res.status_code == 200
     
@@ -155,7 +153,6 @@ def test_bulk_api():
     v2 = cur.fetchone()["current_version"]
 
     res = client.post("/node/bulk", json={
-        "user": user,
         "operations": [
             {
                 "type": "delete_node",
@@ -163,7 +160,7 @@ def test_bulk_api():
                 "base_version": v2
             }
         ]
-    })
+    }, headers=headers)
 
     assert res.status_code == 200
 

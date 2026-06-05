@@ -14,3 +14,9 @@ from opecore.api.deps import init_db
 def create_test_client(dsn):
     init_db(dsn)
     return TestClient(app)
+
+def get_auth_headers(client, user="user1"):
+    res = client.post("/auth/login", json={"user": user})
+    token = res.json()["access_token"]
+
+    return {"Authorization": f"Bearer {token}"}

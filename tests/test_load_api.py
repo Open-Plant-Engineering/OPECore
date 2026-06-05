@@ -18,7 +18,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 from tests.db_utils import reset_database
-from tests.api_utils import create_test_client
+from tests.api_utils import create_test_client, get_auth_headers
 from opecore.db.connection import DBConnection
 
 
@@ -39,6 +39,7 @@ def test_load_api():
     client = create_test_client(pgbouncer_dsn)
 
     user = "user1"
+    headers = get_auth_headers(client, user)
 
     # ----------------------------
     # 2. CREATE NODE
@@ -50,17 +51,15 @@ def test_load_api():
             "2": "Plant1",
             "3": "Pump",
             "4": 5.0
-        },
-        "user": user
-    })
+        }
+    }, headers=headers)
 
     assert res.status_code == 200
     node_id = res.json()["node_id"]
 
     client.post("/node/claim", json={
-        "node_id": node_id,
-        "user": user
-    })
+        "node_id": node_id
+    }, headers=headers)
 
     # ----------------------------
     # 3. WARM-UP

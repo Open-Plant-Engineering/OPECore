@@ -14,9 +14,6 @@ def get(key: str):
     if data:
         print("✅ CACHE HIT:", key)
         obj = json.loads(data)
-        # ✅ FIX: convert keys back to int
-        if isinstance(obj, dict):
-            return {int(k): v for k, v in obj.items()}
         return obj
     print("❌ CACHE MISS:", key)
     return None
@@ -32,3 +29,6 @@ def delete_prefix(prefix: str):
     """
     for key in r.scan_iter(f"{prefix}*"):
         r.delete(key)
+
+def clear():
+    r.flushdb()

@@ -14,7 +14,7 @@ This ensures:
 """
 
 from tests.db_utils import reset_database
-from tests.api_utils import create_test_client
+from tests.api_utils import create_test_client, get_auth_headers
 
 from opecore.db.connection import DBConnection
 
@@ -56,6 +56,8 @@ def test_api_version_conflict():
 
     user1 = "user1"
     user2 = "user2"
+    headers1 = get_auth_headers(client, user1)
+    headers2 = get_auth_headers(client, user2)
 
     # ----------------------------
     # 2. CREATE NODE
@@ -67,8 +69,7 @@ def test_api_version_conflict():
             "2": "Plant1",
             "3": "Pump"
         },
-        "user": user1
-    })
+    }, headers= headers1)
 
     assert res.status_code == 200
     node_id = res.json()["node_id"]
@@ -78,8 +79,7 @@ def test_api_version_conflict():
     # ----------------------------
     res = client.post("/node/claim", json={
         "node_id": node_id,
-        "user": user1
-    })
+    }, headers=headers1)
     assert res.status_code == 200
 
     # ----------------------------
@@ -99,10 +99,9 @@ def test_api_version_conflict():
     # ----------------------------
     res = client.post("/node/update", json={
         "node_id": node_id,
-        "user": user1,
         "base_version": v1,
         "changes": {"5": True}
-    })
+    }, headers=headers1)
 
     assert res.status_code == 200
 
@@ -111,8 +110,7 @@ def test_api_version_conflict():
     # ----------------------------
     res = client.post("/node/release", json={
         "node_id": node_id,
-        "user": user1
-    })
+    }, headers=headers1)
     assert res.status_code == 200
 
     # ----------------------------
@@ -120,8 +118,7 @@ def test_api_version_conflict():
     # ----------------------------
     res = client.post("/node/claim", json={
         "node_id": node_id,
-        "user": user2
-    })
+    }, headers=headers2)
     assert res.status_code == 200
 
     # ----------------------------
@@ -129,10 +126,9 @@ def test_api_version_conflict():
     # ----------------------------
     res = client.post("/node/update", json={
         "node_id": node_id,
-        "user": user2,
         "base_version": v1,   # ❗ stale version
         "changes": {"4": 10}
-    })
+    }, headers=headers2)
 
     # ✅ EXPECT VERSION CONFLICT
     assert res.status_code == 409

@@ -15,7 +15,7 @@ This ensures:
 """
 
 from tests.db_utils import reset_database
-from tests.api_utils import create_test_client
+from tests.api_utils import create_test_client, get_auth_headers
 from opecore.db.connection import DBConnection
 from opecore.core.node_service import NodeService
 from opecore.core.claim_service import ClaimService
@@ -112,25 +112,27 @@ def test_api_claim_conflict():
     user1 = "user1"
     user2 = "user2"
 
+    headers1 = get_auth_headers(client, user1)
+    headers2 = get_auth_headers(client, user2)
+
     # create
     res = client.post("/node/create", json={
         "class_id": 1,
-        "attrs": {"1": "PumpA", "2": "Plant1", "3": "Pump"},
-        "user": user1
-    })
+        "attrs": {"1": "PumpA", "2": "Plant1", "3": "Pump"}
+    }, headers=headers1 )
 
+    assert res.status_code == 200
+    
     node_id = res.json()["node_id"]
 
     # user1 claims
     client.post("/node/claim", json={
         "node_id": node_id,
-        "user": user1
-    })
+    }, headers=headers1)
 
     # user2 tries to claim
     res = client.post("/node/claim", json={
         "node_id": node_id,
-        "user": user2
-    })
+    }, headers=headers2)
 
     assert res.status_code == 403

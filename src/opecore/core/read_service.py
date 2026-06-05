@@ -28,7 +28,6 @@ class ReadService:
 
         cache_key = f"node:{node_id}:{snapshot_version}"
 
-        # ✅ use cache only when allowed
         if use_cache:
             cached = cache.get(cache_key)
             if cached is not None:
@@ -37,46 +36,44 @@ class ReadService:
         result = {}
         deleted_attrs = set()
 
+        # ✅ build version chain
+        version_chain = []
         version = snapshot_version
-
         while version:
+            version_chain.append(version)
+            version = self._get_parent(version)
 
-            # ---------
-            # 1. Deleted attributes
-            # ---------
+        # ✅ replay oldest → newest
+        for version in reversed(version_chain):
+
+            # ✅ 1. apply attribute deletions
             for attr_id in self._get_deleted_attrs(node_id, version):
                 deleted_attrs.add(attr_id)
+                result.pop(attr_id, None)
 
-                if attr_id in result:
-                    result.pop(attr_id)
-
-            # ---------
-            # 2. Load attributes
-            # ---------
+            # ✅ 2. apply attributes
             attrs = self._get_attrs(node_id, version)
 
             for attr_id, value in attrs.items():
-                if attr_id not in result and attr_id not in deleted_attrs:
-                    result[attr_id] = value
+                attr_id = str(attr_id)  # ✅ normalize
 
-            # ---------
-            # 3. Check node deletion
-            # ---------
-            if result.get(Attr.DELETED) is True:
-                if use_cache:
-                    cache.set(cache_key, None)
-                return None
+                # ✅ skip deleted attrs
+                if attr_id in deleted_attrs:
+                    continue
 
-            # ---------
-            # 4. Move to parent
-            # ---------
-            version = self._get_parent(version)
+                result[attr_id] = value  # ✅ overwrite latest
 
-        # ✅ cache final result
+        # ✅ 3. handle node delete
+        if result.get(Attr.DELETED):
+            if use_cache:
+                cache.set(cache_key, None)
+            return None
+
         if use_cache:
             cache.set(cache_key, result)
 
         return result
+
 
     # -------------------------
     # LOAD ATTRS BY TYPE
@@ -109,7 +106,7 @@ class ReadService:
             WHERE node_id=%s AND version_id=%s
             """, (node_id, version_id))
             for r in cur.fetchall():
-                result[r["attr_id"]] = r["value"]
+                result[str(r["attr_id"])] = r["value"]
 
         return result
 
@@ -124,7 +121,7 @@ class ReadService:
             WHERE node_id=%s AND version_id=%s
             """, (node_id, version_id))
 
-            return [r["attr_id"] for r in cur.fetchall()]
+            return [str(r["attr_id"]) for r in cur.fetchall()]
 
     # -------------------------
     # GET PARENT VERSION
