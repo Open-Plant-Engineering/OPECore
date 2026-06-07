@@ -46,3 +46,4 @@ class BulkRequest(BaseModel):
 class RollbackRequest(BaseModel):
     node_id: str
     target_version: int
+    attr_ids: Optional[List[str]] = None 

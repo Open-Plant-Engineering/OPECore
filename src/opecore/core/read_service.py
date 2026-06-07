@@ -251,3 +251,35 @@ class ReadService:
                 }
 
         return diff
+
+    def preview_rollback(self, node_id, target_version, attr_ids=None):
+
+        current_state = self.get_node(node_id, use_cache=False)
+        target_state = self.get_node(
+            node_id,
+            snapshot_version=target_version,
+            use_cache=False
+        )
+
+        if current_state is None:
+            current_state = {}
+
+        if target_state is None:
+            target_state = {}
+
+        # ✅ partial logic
+        if attr_ids:
+            simulated = dict(current_state)
+
+            for attr in attr_ids:
+                if attr in target_state:
+                    simulated[attr] = target_state[attr]
+                else:
+                    simulated.pop(attr, None)
+        else:
+            simulated = dict(target_state)
+
+        # ✅ compute diff
+        diff = self._compute_diff(current_state, simulated)
+
+        return diff

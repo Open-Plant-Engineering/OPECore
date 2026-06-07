@@ -239,8 +239,23 @@ def rollback_node(req: RollbackRequest, user=Depends(get_current_user), conn=Dep
     version = service.rollback_node(
         node_id=req.node_id,
         user=user,
-        target_version=req.target_version
+        target_version=req.target_version,
+        attr_ids=req.attr_ids
     )
 
     return {"version": version}
 
+@router.post("/rollback-preview")
+def rollback_preview(
+    req: RollbackRequest,
+    conn=Depends(get_conn)
+):
+    read = ReadService(conn)
+
+    changes = read.preview_rollback(
+        node_id=req.node_id,
+        target_version=req.target_version,
+        attr_ids=req.attr_ids
+    )
+
+    return {"changes": changes}

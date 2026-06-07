@@ -187,7 +187,7 @@ class NodeService:
                     (node_id, version_id, attr_id, value)
                 )
 
-    def rollback_node(self, node_id, user, target_version):
+    def rollback_node(self, node_id, user, target_version, attr_ids=None):
 
         from opecore.core.read_service import ReadService
         from opecore.core.claim_service import ClaimService
@@ -211,18 +211,47 @@ class NodeService:
 
                 current_version = row["current_version"]
 
-                # ✅ get snapshot at target version
+                # ✅ get current + target state
+                current_state = reader.get_node(node_id, use_cache=False)
                 target_state = reader.get_node(
                     node_id,
                     snapshot_version=target_version,
                     use_cache=False
                 )
 
-                # ✅ interpret deleted state correctly
+                # ✅ normalize states
+                if current_state is None:
+                    current_state = {}
+
                 if target_state is None:
-                    target_state = {Attr.DELETED: True}
+                    target_state = {}
+
+                # ✅ PARTIAL vs FULL ROLLBACK
+                if attr_ids:
+                    # ✅ partial rollback → merge
+                    new_state = dict(current_state)
+
+                    for attr in attr_ids:
+                        if attr in target_state:
+                            new_state[attr] = target_state[attr]
+                        else:
+                            new_state.pop(attr, None)
+
                 else:
-                    target_state[Attr.DELETED] = False
+                    # ✅ full rollback
+                    new_state = dict(target_state)
+
+                # ✅ HANDLE DELETE FLAG (VERY IMPORTANT)
+                target_deleted = reader.get_node(
+                    node_id,
+                    snapshot_version=target_version,
+                    use_cache=False
+                ) is None
+
+                if target_deleted:
+                    new_state = {Attr.DELETED: True}
+                else:
+                    new_state[Attr.DELETED] = False
 
                 # ✅ create new version
                 cur.execute("""
@@ -234,7 +263,7 @@ class NodeService:
                 new_version = cur.fetchone()["version_id"]
 
                 # ✅ reuse existing helper to insert attrs
-                self._insert_attrs(cur, node_id, new_version, target_state)
+                self._insert_attrs(cur, node_id, new_version, new_state)
 
                 # ✅ update node pointer
                 cur.execute("""
