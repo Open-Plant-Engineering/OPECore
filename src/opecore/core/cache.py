@@ -12,10 +12,8 @@ r = redis.Redis(host="localhost", port=6379, decode_responses=True, protocol=2)
 def get(key: str):
     data = r.get(key)
     if data:
-        print("✅ CACHE HIT:", key)
         obj = json.loads(data)
         return obj
-    print("❌ CACHE MISS:", key)
     return None
 
 

@@ -211,3 +211,12 @@ def update_node(
 
     except ValidationError as e:
         raise HTTPException(400, str(e))
+
+@router.get("/{node_id}/history")
+def get_node_history(node_id: str, conn=Depends(get_conn)):
+
+    read = ReadService(conn)
+
+    history = read.get_history(node_id)
+
+    return {"history": history}

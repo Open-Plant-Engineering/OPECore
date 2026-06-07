@@ -153,3 +153,33 @@ class ReadService:
             """, (Attr.PRESSURE, value))
 
             return [r["node_id"] for r in cur.fetchall()]
+
+    def get_history(self, node_id):
+
+        history = []
+
+        with self.conn.cursor() as cur:
+
+            # get all versions for node
+            cur.execute("""
+            SELECT version_id, parent_version, created_by
+            FROM versions
+            WHERE node_id=%s
+            ORDER BY version_id ASC
+            """, (node_id,))
+
+            versions = cur.fetchall()
+
+        for v in versions:
+            version_id = v["version_id"]
+
+            # ✅ get snapshot at that version
+            snapshot = self.get_node(node_id, snapshot_version=version_id, use_cache=False)
+
+            history.append({
+                "version": version_id,
+                "user": v["created_by"],
+                "data": snapshot
+            })
+
+        return history
