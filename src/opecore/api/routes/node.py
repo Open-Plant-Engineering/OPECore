@@ -9,6 +9,7 @@ from opecore.api.schemas.node import (
     ClaimRequest,
     DeleteAttrRequest,
     BulkRequest,
+    RollbackRequest,
 )
 from opecore.core.bulk_service import BulkService
 from opecore.core.node_service import NodeService
@@ -213,10 +214,33 @@ def update_node(
         raise HTTPException(400, str(e))
 
 @router.get("/{node_id}/history")
-def get_node_history(node_id: str, conn=Depends(get_conn)):
+def get_node_history(
+    node_id: str,
+    user: str = None,
+    attr_id: str = None,
+    conn=Depends(get_conn)
+):
 
     read = ReadService(conn)
 
-    history = read.get_history(node_id)
+    history = read.get_history(
+        node_id=node_id,
+        user=user,
+        attr_id=attr_id
+    )
 
     return {"history": history}
+
+@router.post("/rollback")
+def rollback_node(req: RollbackRequest, user=Depends(get_current_user), conn=Depends(get_conn)):
+
+    service = NodeService(conn)
+
+    version = service.rollback_node(
+        node_id=req.node_id,
+        user=user,
+        target_version=req.target_version
+    )
+
+    return {"version": version}
+

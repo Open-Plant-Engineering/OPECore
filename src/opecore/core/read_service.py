@@ -1,6 +1,6 @@
 from opecore.core.attr_def import ATTR_TYPES, Attr
 from opecore.core import cache
-
+from opecore.core.claim_service import ClaimService
 
 class ReadService:
 
@@ -55,20 +55,21 @@ class ReadService:
             attrs = self._get_attrs(node_id, version)
 
             for attr_id, value in attrs.items():
-                attr_id = str(attr_id)  # ✅ normalize
+                attr_id = str(attr_id)  # ✅ keep consistent (safe)
 
-                # ✅ skip deleted attrs
                 if attr_id in deleted_attrs:
                     continue
 
-                result[attr_id] = value  # ✅ overwrite latest
+                result[attr_id] = value
 
-        # ✅ 3. handle node delete
-        if result.get(Attr.DELETED):
-            if use_cache:
-                cache.set(cache_key, None)
-            return None
+        if Attr.DELETED in result:
+            if result[Attr.DELETED] is True:
+                return None
+        
+            if result[Attr.DELETED] is False:
+                result.pop(Attr.DELETED)
 
+        # ✅ cache final state
         if use_cache:
             cache.set(cache_key, result)
 
@@ -154,7 +155,7 @@ class ReadService:
 
             return [r["node_id"] for r in cur.fetchall()]
 
-    def get_history(self, node_id):
+    def get_history(self, node_id, user=None, attr_id=None):
 
         history = []
 
@@ -179,15 +180,30 @@ class ReadService:
                 use_cache=False
             )
 
+            # ✅ IMPORTANT FIX: ensure None stays None (not converted to {})
+            if current_snapshot is None:
+                current_snapshot = None
+
             # ✅ compute diff vs previous version
             changes = self._compute_diff(prev_snapshot, current_snapshot)
 
-            history.append({
+            entry = {
                 "version": version_id,
                 "user": v["created_by"],
                 "timestamp": str(v["created_at"]),
                 "changes": changes
-            })
+            }
+
+            # ✅ FILTER BY USER
+            if user and entry["user"] != user:
+                continue
+            
+            # ✅ FILTER BY ATTR
+            if attr_id:
+                if attr_id not in entry["changes"]:
+                    continue
+                
+            history.append(entry)
 
             prev_snapshot = current_snapshot
 
@@ -199,6 +215,14 @@ class ReadService:
 
         old_data = old_data or {}
         new_data = new_data or {}
+
+        # ✅ NODE-LEVEL DELETE DETECTION
+        if old_data and not new_data:
+            return {
+                "_node": {
+                    "type": "deleted"
+                }
+            }
 
         all_keys = set(old_data.keys()).union(new_data.keys())
 

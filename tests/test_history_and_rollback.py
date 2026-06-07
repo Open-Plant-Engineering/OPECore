@@ -1,21 +1,21 @@
 """
 TEST PURPOSE:
 -------------
-Verify history tracking:
-✅ who changed what
-✅ version ordering
-✅ snapshot correctness
+✅ Verify diff-based history
+✅ Verify who changed what and when
+✅ Verify node-level delete event
+✅ Verify rollback functionality
+✅ Verify history filtering
 """
 
 from tests.db_utils import reset_database
 from tests.api_utils import create_test_client, get_auth_headers
-
 from opecore.db.connection import DBConnection
 
 DB = "opecore_test_history"
 
 
-def test_history_api():
+def test_history_and_rollback():
 
     # ----------------------------
     # 1. RESET DB
@@ -53,9 +53,9 @@ def test_history_api():
     # ----------------------------
     client.post("/node/claim", json={"node_id": node_id}, headers=headers1)
 
-    # get version
     conn = DBConnection(dsn).get_conn()
     cur = conn.cursor()
+
     cur.execute("SELECT current_version FROM nodes WHERE node_id=%s", (node_id,))
     v1 = cur.fetchone()["current_version"]
 
@@ -72,7 +72,7 @@ def test_history_api():
     client.post("/node/release", json={"node_id": node_id}, headers=headers1)
 
     # ----------------------------
-    # 4. USER2 CLAIM + DELETE ATTR (v3)
+    # 4. USER2 DELETE ATTR (v3)
     # ----------------------------
     client.post("/node/claim", json={"node_id": node_id}, headers=headers2)
 
@@ -91,7 +91,6 @@ def test_history_api():
     # 5. FETCH HISTORY
     # ----------------------------
     res = client.get(f"/node/{node_id}/history")
-
     assert res.status_code == 200
 
     history = res.json()["history"]
@@ -99,29 +98,28 @@ def test_history_api():
     # ----------------------------
     # 6. VALIDATIONS
     # ----------------------------
-
-    # ✅ we expect 3 versions
     assert len(history) == 3
 
-    # ✅ version 1 (create)
+    # ✅ version 1
     v1_data = history[0]
     assert v1_data["user"] == user1
+
     assert "1" in v1_data["changes"]
     assert v1_data["changes"]["1"]["type"] == "added"
     assert v1_data["changes"]["1"]["value"] == "PumpA"
 
-    assert "4" not in v1_data["changes"]
-
-    # ✅ version 2 (update)
+    # ✅ version 2
     v2_data = history[1]
     assert v2_data["user"] == user1
+
     assert "4" in v2_data["changes"]
     assert v2_data["changes"]["4"]["type"] == "added"
     assert v2_data["changes"]["4"]["value"] == 25.0
 
-    # ✅ version 3 (delete attr)
+    # ✅ version 3
     v3_data = history[2]
     assert v3_data["user"] == user2
+
     assert "4" in v3_data["changes"]
     assert v3_data["changes"]["4"]["type"] == "removed"
     assert v3_data["changes"]["4"]["old_value"] == 25.0
@@ -143,15 +141,48 @@ def test_history_api():
     # 8. HISTORY AFTER DELETE
     # ----------------------------
     res = client.get(f"/node/{node_id}/history")
-
     history = res.json()["history"]
 
     assert len(history) == 4
 
-    # last version should be deleted
     last = history[-1]
 
-    # all attributes should be removed
+    # ✅ NODE-LEVEL DELETE EVENT
     assert "_node" in last["changes"]
     assert last["changes"]["_node"]["type"] == "deleted"
 
+    # ----------------------------
+    # 9. ROLLBACK TO VERSION 1
+    # ----------------------------
+    res = client.post("/node/rollback", json={
+        "node_id": node_id,
+        "target_version": 1
+    }, headers=headers2)
+
+    assert res.status_code == 200
+
+    # verify rollback
+    res = client.get(f"/node/{node_id}")
+    data = res.json()["data"]
+
+    # ✅ attr 4 should NOT exist anymore
+    assert "4" not in data
+    assert data["1"] == "PumpA"
+
+    # ----------------------------
+    # 10. FILTER HISTORY BY USER
+    # ----------------------------
+    res = client.get(f"/node/{node_id}/history?user=user2")
+    filtered = res.json()["history"]
+
+    for entry in filtered:
+        assert entry["user"] == "user2"
+
+    # ----------------------------
+    # 11. FILTER BY ATTRIBUTE
+    # ----------------------------
+    res = client.get(f"/node/{node_id}/history?attr_id=4")
+    filtered = res.json()["history"]
+
+    for entry in filtered:
+        assert "4" in entry["changes"]

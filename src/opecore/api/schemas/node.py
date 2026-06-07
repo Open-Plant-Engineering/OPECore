@@ -42,3 +42,7 @@ class BulkOperation(BaseModel):
 
 class BulkRequest(BaseModel):
     operations: List[BulkOperation]
+
+class RollbackRequest(BaseModel):
+    node_id: str
+    target_version: int

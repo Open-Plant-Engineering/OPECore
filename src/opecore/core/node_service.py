@@ -186,3 +186,62 @@ class NodeService:
                     "INSERT INTO attr_bool VALUES (%s,%s,%s,%s)",
                     (node_id, version_id, attr_id, value)
                 )
+
+    def rollback_node(self, node_id, user, target_version):
+
+        from opecore.core.read_service import ReadService
+        from opecore.core.claim_service import ClaimService
+
+        reader = ReadService(self.conn)
+
+        with self.conn.transaction():
+            with self.conn.cursor() as cur:
+
+                # ✅ validate claim
+                ClaimService.validate(self.conn, node_id, user)
+
+                # ✅ check node exists
+                cur.execute("""
+                SELECT current_version FROM nodes WHERE node_id=%s
+                """, (node_id,))
+                row = cur.fetchone()
+
+                if not row:
+                    raise Exception("Node not found")
+
+                current_version = row["current_version"]
+
+                # ✅ get snapshot at target version
+                target_state = reader.get_node(
+                    node_id,
+                    snapshot_version=target_version,
+                    use_cache=False
+                )
+
+                # ✅ interpret deleted state correctly
+                if target_state is None:
+                    target_state = {Attr.DELETED: True}
+                else:
+                    target_state[Attr.DELETED] = False
+
+                # ✅ create new version
+                cur.execute("""
+                INSERT INTO versions(node_id, parent_version, created_by)
+                VALUES (%s, %s, %s)
+                RETURNING version_id
+                """, (node_id, current_version, user))
+
+                new_version = cur.fetchone()["version_id"]
+
+                # ✅ reuse existing helper to insert attrs
+                self._insert_attrs(cur, node_id, new_version, target_state)
+
+                # ✅ update node pointer
+                cur.execute("""
+                UPDATE nodes SET current_version=%s WHERE node_id=%s
+                """, (new_version, node_id))
+                
+                from opecore.core import cache
+                cache.delete_prefix(f"node:{node_id}")
+
+                return new_version
