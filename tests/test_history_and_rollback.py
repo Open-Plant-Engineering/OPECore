@@ -90,7 +90,7 @@ def test_history_and_rollback():
     # ----------------------------
     # 5. FETCH HISTORY
     # ----------------------------
-    res = client.get(f"/node/{node_id}/history")
+    res = client.get(f"/node/{node_id}/history", headers=headers2)
     assert res.status_code == 200
 
     history = res.json()["history"]
@@ -140,7 +140,7 @@ def test_history_and_rollback():
     # ----------------------------
     # 8. HISTORY AFTER DELETE
     # ----------------------------
-    res = client.get(f"/node/{node_id}/history")
+    res = client.get(f"/node/{node_id}/history", headers=headers2)
     history = res.json()["history"]
 
     assert len(history) == 4
@@ -162,7 +162,7 @@ def test_history_and_rollback():
     assert res.status_code == 200
 
     # verify rollback
-    res = client.get(f"/node/{node_id}")
+    res = client.get(f"/node/{node_id}", headers=headers2)
     data = res.json()["data"]
 
     # ✅ attr 4 should NOT exist anymore
@@ -172,7 +172,7 @@ def test_history_and_rollback():
     # ----------------------------
     # 10. FILTER HISTORY BY USER
     # ----------------------------
-    res = client.get(f"/node/{node_id}/history?user=user2")
+    res = client.get(f"/node/{node_id}/history?user=user2", headers=headers2)
     filtered = res.json()["history"]
 
     for entry in filtered:
@@ -181,7 +181,7 @@ def test_history_and_rollback():
     # ----------------------------
     # 11. FILTER BY ATTRIBUTE
     # ----------------------------
-    res = client.get(f"/node/{node_id}/history?attr_id=4")
+    res = client.get(f"/node/{node_id}/history?attr_id=4", headers=headers2)
     filtered = res.json()["history"]
 
     for entry in filtered:

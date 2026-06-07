@@ -75,7 +75,7 @@ def test_multiple_rollback_cycles():
 
     assert res.status_code == 200
 
-    res = client.get(f"/node/{node_id}")
+    res = client.get(f"/node/{node_id}", headers=headers)
     data = res.json()["data"]
 
     # ✅ should be alive again
@@ -96,7 +96,7 @@ def test_multiple_rollback_cycles():
     assert res.status_code == 200
 
     # ✅ should be deleted again
-    res = client.get(f"/node/{node_id}")
+    res = client.get(f"/node/{node_id}", headers=headers)
     data = res.json()["data"]
 
     assert data is None
@@ -107,7 +107,7 @@ def test_multiple_rollback_cycles():
     # ----------------------------
     # 6. HISTORY VALIDATION
     # ----------------------------
-    res = client.get(f"/node/{node_id}/history")
+    res = client.get(f"/node/{node_id}/history", headers=headers)
     history = res.json()["history"]
 
     # ✅ should have 4+ versions

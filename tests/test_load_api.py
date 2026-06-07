@@ -70,7 +70,7 @@ def test_load_api():
     # 4. WORKER
     # ----------------------------
     def worker():
-        r = client.get(f"/node/{node_id}")
+        r = client.get(f"/node/{node_id}", headers=headers)
         assert r.status_code == 200
         return 1
 

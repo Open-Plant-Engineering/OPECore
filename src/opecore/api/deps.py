@@ -6,9 +6,15 @@ def get_conn(request: Request):
 
     dsn = getattr(request.app.state, "test_dsn", None)
 
+    # ✅ TEST MODE
     if dsn:
-        project = "test"   # ✅ tests always use test DB
+        project = request.headers.get("project")
+
+        if not project:
+            raise HTTPException(400, "Missing project header")
+
     else:
+        # ✅ PRODUCTION MODE
         project = request.headers.get("project")
 
         if not project:
@@ -21,7 +27,7 @@ def get_conn(request: Request):
     try:
         conn = db.get_conn()
 
-        # ✅ ALWAYS SET PROJECT (MANDATORY)
+        # ✅ ALWAYS SET PROJECT
         conn.project = project
 
         yield conn

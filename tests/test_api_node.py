@@ -91,7 +91,7 @@ def test_full_api_flow():
     # ----------------------------
     # 6. GET NODE
     # ----------------------------
-    res = client.get(f"/node/{node_id}")
+    res = client.get(f"/node/{node_id}", headers=headers)
     data = res.json()["data"]
 
     assert data["4"] == 25.0
@@ -114,7 +114,7 @@ def test_full_api_flow():
     assert res.status_code == 200
 
     # verify removed
-    res = client.get(f"/node/{node_id}")
+    res = client.get(f"/node/{node_id}", headers=headers)
     data = res.json()["data"]
 
     assert "4" not in data
@@ -138,7 +138,7 @@ def test_full_api_flow():
     # ----------------------------
     # 9. VERIFY DELETED
     # ----------------------------
-    res = client.get(f"/node/{node_id}")
+    res = client.get(f"/node/{node_id}", headers=headers)
     assert res.json()["data"] is None
 
     # ----------------------------

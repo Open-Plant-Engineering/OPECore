@@ -127,7 +127,7 @@ def test_bulk_api():
     # ----------------------------
     # 6. VERIFY DATA
     # ----------------------------
-    res = client.get(f"/node/{node1}")
+    res = client.get(f"/node/{node1}", headers=headers)
     data = res.json()["data"]
 
     # ✅ pressure updated
@@ -167,5 +167,5 @@ def test_bulk_api():
     # ----------------------------
     # 8. VERIFY NODE DELETED
     # ----------------------------
-    res = client.get(f"/node/{node2}")
+    res = client.get(f"/node/{node2}", headers=headers)
     assert res.json()["data"] is None

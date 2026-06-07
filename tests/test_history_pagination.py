@@ -49,7 +49,7 @@ def test_history_pagination():
         }, headers=headers)
 
     # fetch paginated history
-    res = client.get(f"/node/{node_id}/history?page=1&limit=2")
+    res = client.get(f"/node/{node_id}/history?page=1&limit=2", headers=headers)
 
     data = res.json()
 

@@ -9,6 +9,7 @@ class DBConnection:
 
     def get_conn(self):
         conn = psycopg.connect(self.dsn, row_factory=dict_row)
+        conn.project = None
         return conn
 
     def init_db(self):

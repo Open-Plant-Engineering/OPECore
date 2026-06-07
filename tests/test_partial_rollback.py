@@ -62,7 +62,7 @@ def test_partial_rollback():
         "node_id": node_id,
         "target_version": v1,
         "attr_ids": ["2"]
-    })
+    }, headers=headers)
 
     changes = res.json()["changes"]
 
@@ -81,7 +81,7 @@ def test_partial_rollback():
     assert res.status_code == 200
 
     # verify state
-    res = client.get(f"/node/{node_id}")
+    res = client.get(f"/node/{node_id}", headers=headers)
     data = res.json()["data"]
 
     # ✅ only attr 2 restored

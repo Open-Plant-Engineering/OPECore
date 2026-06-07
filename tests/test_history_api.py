@@ -90,7 +90,7 @@ def test_history_api():
     # ----------------------------
     # 5. FETCH HISTORY
     # ----------------------------
-    res = client.get(f"/node/{node_id}/history")
+    res = client.get(f"/node/{node_id}/history", headers=headers2)
 
     assert res.status_code == 200
 
@@ -142,7 +142,7 @@ def test_history_api():
     # ----------------------------
     # 8. HISTORY AFTER DELETE
     # ----------------------------
-    res = client.get(f"/node/{node_id}/history")
+    res = client.get(f"/node/{node_id}/history", headers=headers2)
 
     history = res.json()["history"]
 

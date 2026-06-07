@@ -64,7 +64,7 @@ def test_rollback_preview():
     res = client.post("/node/rollback-preview", json={
         "node_id": node_id,
         "target_version": v1
-    })
+    }, headers=headers)
 
     assert res.status_code == 200
 
@@ -77,7 +77,7 @@ def test_rollback_preview():
     # ----------------------------
     # ensure NO actual rollback happened
     # ----------------------------
-    res = client.get(f"/node/{node_id}")
+    res = client.get(f"/node/{node_id}", headers=headers)
     data = res.json()["data"]
 
     assert "4" in data  # still exists!
@@ -88,7 +88,7 @@ def test_rollback_preview():
     res = client.post("/node/rollback-preview", json={
         "node_id": node_id,
         "target_version": v2
-    })
+    }, headers=headers)
 
     changes = res.json()["changes"]
 

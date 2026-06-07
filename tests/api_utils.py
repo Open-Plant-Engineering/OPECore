@@ -14,8 +14,11 @@ def create_test_client(dsn):
     app.state.test_dsn = dsn
     return TestClient(app)
 
-def get_auth_headers(client, user="user1"):
+def get_auth_headers(client, user, project="test"):
     res = client.post("/auth/login", json={"user": user})
     token = res.json()["access_token"]
 
-    return {"Authorization": f"Bearer {token}"}
+    return {
+        "Authorization": f"Bearer {token}",
+        "project": project  # ✅ REQUIRED NOW
+    }
