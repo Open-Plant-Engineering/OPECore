@@ -4,24 +4,22 @@ from opecore.db.connection import DBConnection
 
 def get_conn(request: Request):
 
-    # ✅ STRICT: project is mandatory
     project = request.headers.get("project")
 
     if not project:
         raise HTTPException(400, "Missing project header")
 
-    # ✅ ALWAYS use PgBouncer
     dsn = f"postgresql://postgres@127.0.0.1:6432/{project}"
 
     db = DBConnection(dsn)
 
+    conn = None  # ✅ IMPORTANT
+
     try:
         conn = db.get_conn()
-
-        # ✅ ALWAYS SET PROJECT
         conn.project = project
-
         yield conn
 
     finally:
-        conn.close()
+        if conn:   # ✅ SAFE CLOSE
+            conn.close()

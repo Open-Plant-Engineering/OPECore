@@ -148,8 +148,12 @@ def get_node(node_id: str, conn=Depends(get_conn)):
     read = ReadService(conn)
 
     data = read.get_node(node_id)
+    version = read.get_current_version(node_id)
 
-    return {"data": data}
+    return {
+        "data": data,
+        "version": version
+    }
 
 
 # ✅ UPDATE NODE
