@@ -106,18 +106,25 @@ def test_history_api():
     # ✅ version 1 (create)
     v1_data = history[0]
     assert v1_data["user"] == user1
-    assert v1_data["data"]["1"] == "PumpA"
-    assert "4" not in v1_data["data"]
+    assert "1" in v1_data["changes"]
+    assert v1_data["changes"]["1"]["type"] == "added"
+    assert v1_data["changes"]["1"]["value"] == "PumpA"
+
+    assert "4" not in v1_data["changes"]
 
     # ✅ version 2 (update)
     v2_data = history[1]
     assert v2_data["user"] == user1
-    assert v2_data["data"]["4"] == 25.0   # added pressure
+    assert "4" in v2_data["changes"]
+    assert v2_data["changes"]["4"]["type"] == "added"
+    assert v2_data["changes"]["4"]["value"] == 25.0
 
     # ✅ version 3 (delete attr)
     v3_data = history[2]
     assert v3_data["user"] == user2
-    assert "4" not in v3_data["data"]     # removed
+    assert "4" in v3_data["changes"]
+    assert v3_data["changes"]["4"]["type"] == "removed"
+    assert v3_data["changes"]["4"]["old_value"] == 25.0
 
     # ----------------------------
     # 7. DELETE NODE (v4)
@@ -142,4 +149,10 @@ def test_history_api():
     assert len(history) == 4
 
     # last version should be deleted
-    assert history[-1]["data"] is None
+    last = history[-1]
+
+    # all attributes should be removed
+    for attr in ["1", "2", "3"]:
+        assert attr in last["changes"]
+        assert last["changes"][attr]["type"] == "removed"
+

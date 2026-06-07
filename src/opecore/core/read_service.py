@@ -159,10 +159,8 @@ class ReadService:
         history = []
 
         with self.conn.cursor() as cur:
-
-            # get all versions for node
             cur.execute("""
-            SELECT version_id, parent_version, created_by
+            SELECT version_id, parent_version, created_by, created_at
             FROM versions
             WHERE node_id=%s
             ORDER BY version_id ASC
@@ -170,16 +168,62 @@ class ReadService:
 
             versions = cur.fetchall()
 
+        prev_snapshot = None
+
         for v in versions:
             version_id = v["version_id"]
 
-            # ✅ get snapshot at that version
-            snapshot = self.get_node(node_id, snapshot_version=version_id, use_cache=False)
+            current_snapshot = self.get_node(
+                node_id,
+                snapshot_version=version_id,
+                use_cache=False
+            )
+
+            # ✅ compute diff vs previous version
+            changes = self._compute_diff(prev_snapshot, current_snapshot)
 
             history.append({
                 "version": version_id,
                 "user": v["created_by"],
-                "data": snapshot
+                "timestamp": str(v["created_at"]),
+                "changes": changes
             })
 
+            prev_snapshot = current_snapshot
+
         return history
+
+    def _compute_diff(self, old_data, new_data):
+
+        diff = {}
+
+        old_data = old_data or {}
+        new_data = new_data or {}
+
+        all_keys = set(old_data.keys()).union(new_data.keys())
+
+        for key in all_keys:
+
+            old_val = old_data.get(key)
+            new_val = new_data.get(key)
+
+            if key not in old_data:
+                diff[key] = {
+                    "type": "added",
+                    "value": new_val
+                }
+
+            elif key not in new_data:
+                diff[key] = {
+                    "type": "removed",
+                    "old_value": old_val
+                }
+
+            elif old_val != new_val:
+                diff[key] = {
+                    "type": "updated",
+                    "old_value": old_val,
+                    "new_value": new_val
+                }
+
+        return diff
