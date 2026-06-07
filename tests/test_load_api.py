@@ -36,10 +36,10 @@ def test_load_api():
     DBConnection(direct_dsn).init_db()
 
     pgbouncer_dsn = f"postgresql://postgres@127.0.0.1:6432/{DB}"
-    client = create_test_client(pgbouncer_dsn)
+    client = create_test_client()
 
     user = "user1"
-    headers = get_auth_headers(client, user)
+    headers = get_auth_headers(client, user, project=DB)
 
     # ----------------------------
     # 2. CREATE NODE

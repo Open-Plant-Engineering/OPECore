@@ -23,10 +23,10 @@ def test_rollback_preview():
     dsn = f"postgresql://postgres:postgres@localhost:5432/{DB}"
     DBConnection(dsn).init_db()
 
-    client = create_test_client(dsn)
+    client = create_test_client()
 
     user = "user1"
-    headers = get_auth_headers(client, user)
+    headers = get_auth_headers(client, user, project=DB)
 
     # ----------------------------
     # create node (v1)

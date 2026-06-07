@@ -52,12 +52,12 @@ def test_api_version_conflict():
     # PgBouncer connection (for API)
     pgbouncer_dsn = f"postgresql://postgres@127.0.0.1:6432/{DB}"
 
-    client = create_test_client(pgbouncer_dsn)
+    client = create_test_client()
 
     user1 = "user1"
     user2 = "user2"
-    headers1 = get_auth_headers(client, user1)
-    headers2 = get_auth_headers(client, user2)
+    headers1 = get_auth_headers(client, user1, project=DB)
+    headers2 = get_auth_headers(client, user2, project=DB)
 
     # ----------------------------
     # 2. CREATE NODE

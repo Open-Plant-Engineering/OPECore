@@ -36,10 +36,10 @@ def test_full_api_flow():
     dsn = f"postgresql://postgres:postgres@localhost:5432/{DB}"
 
     DBConnection(dsn).init_db()
-    client = create_test_client(dsn)
+    client = create_test_client()
 
     user = "user1"
-    headers = get_auth_headers(client, user)
+    headers = get_auth_headers(client, user, project=DB)
     # ----------------------------
     # 2. CREATE NODE
     # ----------------------------
@@ -166,10 +166,10 @@ def test_full_api_flow1():
     # API uses PgBouncer
     pgbouncer_dsn = f"postgresql://postgres@127.0.0.1:6432/{DB}"
 
-    client = create_test_client(pgbouncer_dsn)
+    client = create_test_client()
 
     user = "user1"
-    headers = get_auth_headers(client, user)
+    headers = get_auth_headers(client, user, project=DB)
 
     # CREATE
     res = client.post("/node/create", json={

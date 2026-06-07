@@ -13,13 +13,13 @@ def test_api_claim_conflict():
     dsn = f"postgresql://postgres:postgres@localhost:5432/{DB}"
     DBConnection(dsn).init_db()
 
-    client = create_test_client(dsn)
+    client = create_test_client()
 
     user1 = "user1"
     user2 = "user2"
 
-    headers1 = get_auth_headers(client, user1)
-    headers2 = get_auth_headers(client, user2)
+    headers1 = get_auth_headers(client, user1, project=DB)
+    headers2 = get_auth_headers(client, user2, project=DB)
 
     # CREATE
     res = client.post("/node/create", json={

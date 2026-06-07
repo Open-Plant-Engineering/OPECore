@@ -10,11 +10,10 @@ from fastapi.testclient import TestClient
 from opecore.api.main import app
 
 
-def create_test_client(dsn):
-    app.state.test_dsn = dsn
+def create_test_client():
     return TestClient(app)
 
-def get_auth_headers(client, user, project="test"):
+def get_auth_headers(client, user, project):
     res = client.post("/auth/login", json={"user": user})
     token = res.json()["access_token"]
 
