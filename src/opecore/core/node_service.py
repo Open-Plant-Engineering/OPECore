@@ -96,7 +96,8 @@ class NodeService:
                 """, (new_version, node_id))
 
         # ✅ invalidate cache AFTER commit
-        cache.delete_prefix(f"node:{node_id}")
+        project = getattr(self.conn, "project", "test")
+        cache.delete_prefix(f"{project}:node:{node_id}")
 
         return new_version
 
@@ -157,7 +158,8 @@ class NodeService:
                 """, (version, node_id))
 
         # ✅ invalidate cache AFTER commit
-        cache.delete_prefix(f"node:{node_id}")
+        project = getattr(self.conn, "project", "test")
+        cache.delete_prefix(f"{project}:node:{node_id}")
 
         return version
 
@@ -274,7 +276,7 @@ class NodeService:
                 UPDATE nodes SET current_version=%s WHERE node_id=%s
                 """, (new_version, node_id))
                 
-                from opecore.core import cache
-                cache.delete_prefix(f"node:{node_id}")
+                project = getattr(self.conn, "project", "test")
+                cache.delete_prefix(f"{project}:node:{node_id}")
 
                 return new_version

@@ -8,11 +8,10 @@ Used by all API tests.
 
 from fastapi.testclient import TestClient
 from opecore.api.main import app
-from opecore.api.deps import init_db
 
 
 def create_test_client(dsn):
-    init_db(dsn)
+    app.state.test_dsn = dsn
     return TestClient(app)
 
 def get_auth_headers(client, user="user1"):

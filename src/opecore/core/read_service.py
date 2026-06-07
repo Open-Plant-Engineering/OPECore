@@ -26,7 +26,9 @@ class ReadService:
         if snapshot_version is None:
             snapshot_version = self.get_current_version(node_id)
 
-        cache_key = f"node:{node_id}:{snapshot_version}"
+        project = getattr(self.conn, "project", "test")
+
+        cache_key = f"{project}:node:{node_id}:{snapshot_version}"
 
         if use_cache:
             cached = cache.get(cache_key)
