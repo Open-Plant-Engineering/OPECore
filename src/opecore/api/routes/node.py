@@ -151,33 +151,6 @@ def get_node(node_id: str, conn=Depends(get_conn)):
 
     return {"data": data}
 
-@router.post("/bulk")
-def bulk_operations(req: BulkRequest, user=Depends(get_current_user), conn=Depends(get_conn)):
-
-    service = BulkService(conn)
-
-    try:
-        result = service.execute(
-            user,
-            [op.model_dump() for op in req.operations]   # ✅ convert schema → dict
-        )
-
-        return {
-            "status": "success",
-            "results": result
-        }
-
-    except VersionConflictError as e:
-        raise HTTPException(409, str(e))
-
-    except NodeDeletedError as e:
-        raise HTTPException(410, str(e))
-
-    except ClaimError as e:
-        raise HTTPException(403, str(e))
-
-    except ValidationError as e:
-        raise HTTPException(400, str(e))
 
 # ✅ UPDATE NODE
 @router.post("/update")
@@ -216,6 +189,8 @@ def update_node(
 @router.get("/{node_id}/history")
 def get_node_history(
     node_id: str,
+    page: int = 1,
+    limit: int = 20,
     user: str = None,
     attr_id: str = None,
     conn=Depends(get_conn)
@@ -223,13 +198,21 @@ def get_node_history(
 
     read = ReadService(conn)
 
-    history = read.get_history(
+    history, total = read.get_history(
         node_id=node_id,
         user=user,
-        attr_id=attr_id
+        attr_id=attr_id,
+        page=page,
+        limit=limit
     )
 
-    return {"history": history}
+    return {
+        "node_id": node_id,
+        "total_versions": total,
+        "page": page,
+        "limit": limit,
+        "history": history
+    }
 
 @router.post("/rollback")
 def rollback_node(req: RollbackRequest, user=Depends(get_current_user), conn=Depends(get_conn)):

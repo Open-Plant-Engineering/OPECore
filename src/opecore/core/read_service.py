@@ -155,7 +155,7 @@ class ReadService:
 
             return [r["node_id"] for r in cur.fetchall()]
 
-    def get_history(self, node_id, user=None, attr_id=None):
+    def get_history(self, node_id, user=None, attr_id=None, page=1, limit=20):
 
         history = []
 
@@ -207,7 +207,23 @@ class ReadService:
 
             prev_snapshot = current_snapshot
 
-        return history
+        # ✅ total count BEFORE pagination
+        total = len(history)
+
+        # ✅ safety guard
+        if page < 1:
+            page = 1
+
+        if limit < 1:
+            limit = 20
+
+        # ✅ calculate slice
+        start = (page - 1) * limit
+        end = start + limit
+
+        paginated = history[start:end]
+
+        return paginated, total
 
     def _compute_diff(self, old_data, new_data):
 
@@ -254,20 +270,28 @@ class ReadService:
 
     def preview_rollback(self, node_id, target_version, attr_ids=None):
 
+        # ✅ current state
         current_state = self.get_node(node_id, use_cache=False)
-        target_state = self.get_node(
+
+        # ✅ target state
+        raw_target = self.get_node(
             node_id,
             snapshot_version=target_version,
             use_cache=False
         )
 
+        # ✅ normalize
         if current_state is None:
             current_state = {}
 
-        if target_state is None:
+        if raw_target is None:
             target_state = {}
+            target_deleted = True
+        else:
+            target_state = dict(raw_target)
+            target_deleted = False
 
-        # ✅ partial logic
+        # ✅ PARTIAL vs FULL (same logic as rollback)
         if attr_ids:
             simulated = dict(current_state)
 
@@ -279,7 +303,27 @@ class ReadService:
         else:
             simulated = dict(target_state)
 
+        # ✅ HANDLE DELETE FLAG (same as rollback)
+        if target_deleted:
+            simulated = {Attr.DELETED: True}
+        else:
+            simulated[Attr.DELETED] = False
+
         # ✅ compute diff
         diff = self._compute_diff(current_state, simulated)
+
+        # ✅ CLEAN SYSTEM ATTR NOISE
+        old_deleted = current_state.get(Attr.DELETED, False)
+        new_deleted = simulated.get(Attr.DELETED, False)
+
+        if Attr.DELETED in diff and old_deleted == new_deleted:
+            diff.pop(Attr.DELETED)
+
+        # ✅ ADD NODE EVENT
+        if old_deleted != new_deleted:
+            if new_deleted:
+                diff["_node"] = {"type": "deleted"}
+            else:
+                diff["_node"] = {"type": "restored"}
 
         return diff

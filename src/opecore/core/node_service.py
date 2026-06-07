@@ -65,7 +65,7 @@ class NodeService:
                 row = cur.fetchone()
 
                 if not row:
-                    raise Exception("Node not found")
+                    raise ValidationError("Node not found")
 
                 current_version = row["current_version"]
 
@@ -169,6 +169,9 @@ class NodeService:
         for attr_id, value in attrs.items():
             dtype = ATTR_TYPES[attr_id]
 
+            if dtype is None:
+                raise ValidationError(f"Unknown attr: {attr_id}")
+
             if dtype == "num":
                 cur.execute(
                     "INSERT INTO attr_num VALUES (%s,%s,%s,%s)",
@@ -207,7 +210,7 @@ class NodeService:
                 row = cur.fetchone()
 
                 if not row:
-                    raise Exception("Node not found")
+                    raise ValidationError("Node not found")
 
                 current_version = row["current_version"]
 
@@ -241,12 +244,13 @@ class NodeService:
                     # ✅ full rollback
                     new_state = dict(target_state)
 
-                # ✅ HANDLE DELETE FLAG (VERY IMPORTANT)
-                target_deleted = reader.get_node(
+                raw_target = reader.get_node(
                     node_id,
                     snapshot_version=target_version,
                     use_cache=False
-                ) is None
+                )
+
+                target_deleted = raw_target is None
 
                 if target_deleted:
                     new_state = {Attr.DELETED: True}
