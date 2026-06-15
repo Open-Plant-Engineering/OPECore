@@ -4,7 +4,8 @@
     <ProjectReference Include="..\OPEDbEngine.Application\OPEDbEngine.Application.csproj" />
     <ProjectReference Include="..\OPEDbEngine.Infrastructure\OPEDbEngine.Infrastructure.csproj" />
     <ProjectReference Include="..\OPEDbEngine.Contracts\OPEDbEngine.Contracts.csproj" />
-	<Protobuf Include="..\OPEDbEngine.Contracts\Protos\health.proto" GrpcServices="Server" />
+    <Protobuf Include="..\OPEDbEngine.Contracts\Protos\user.proto" GrpcServices="Server" />
+	  <Protobuf Include="..\OPEDbEngine.Contracts\Protos\health.proto" GrpcServices="Server" />
   </ItemGroup>
 
   <ItemGroup>
