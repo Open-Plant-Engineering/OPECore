@@ -21,15 +21,10 @@ public class ValueStoreService : IValueStoreService
 
         using var conn = _db.Create();
 
-        var exists = await conn.ExecuteScalarAsync<int>(
-            "SELECT 1 FROM string_values WHERE hash = @Hash LIMIT 1",
-            new { Hash = hash });
-
-        if (exists == 1)
-            return hash;
-
         await conn.ExecuteAsync(
-            "INSERT INTO string_values (hash, value) VALUES (@Hash, @Value)",
+            @"INSERT INTO string_values (hash, value)
+            VALUES (@Hash, @Value)
+            ON CONFLICT (hash) DO NOTHING",
             new { Hash = hash, Value = value });
 
         return hash;
@@ -41,15 +36,10 @@ public class ValueStoreService : IValueStoreService
 
         using var conn = _db.Create();
 
-        var exists = await conn.ExecuteScalarAsync<int>(
-            "SELECT 1 FROM number_values WHERE hash = @Hash LIMIT 1",
-            new { Hash = hash });
-
-        if (exists == 1)
-            return hash;
-
         await conn.ExecuteAsync(
-            "INSERT INTO number_values (hash, value) VALUES (@Hash, @Value)",
+            @"INSERT INTO number_values (hash, value)
+            VALUES (@Hash, @Value)
+            ON CONFLICT (hash) DO NOTHING",
             new { Hash = hash, Value = value });
 
         return hash;
@@ -61,15 +51,10 @@ public class ValueStoreService : IValueStoreService
 
         using var conn = _db.Create();
 
-        var exists = await conn.ExecuteScalarAsync<int>(
-            "SELECT 1 FROM bool_values WHERE hash = @Hash LIMIT 1",
-            new { Hash = hash });
-
-        if (exists == 1)
-            return hash;
-
         await conn.ExecuteAsync(
-            "INSERT INTO bool_values (hash, value) VALUES (@Hash, @Value)",
+            @"INSERT INTO bool_values (hash, value)
+            VALUES (@Hash, @Value)
+            ON CONFLICT (hash) DO NOTHING",
             new { Hash = hash, Value = value });
 
         return hash;
@@ -81,15 +66,10 @@ public class ValueStoreService : IValueStoreService
 
         using var conn = _db.Create();
 
-        var exists = await conn.ExecuteScalarAsync<int>(
-            "SELECT 1 FROM list_values WHERE hash = @Hash LIMIT 1",
-            new { Hash = hash });
-
-        if (exists == 1)
-            return hash;
-
         await conn.ExecuteAsync(
-            "INSERT INTO list_values (hash, value) VALUES (@Hash, @Value)",
+            @"INSERT INTO list_values (hash, value)
+            VALUES (@Hash, @Value)
+            ON CONFLICT (hash) DO NOTHING",
             new { Hash = hash, Value = serializedList });
 
         return hash;

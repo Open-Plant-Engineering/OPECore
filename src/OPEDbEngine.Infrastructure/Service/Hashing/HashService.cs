@@ -13,7 +13,7 @@ public class HashService : IHashService
 
     public byte[] HashNumber(double value)
     {
-        var bytes = BitConverter.GetBytes(value);
+        var bytes = BitConverter.GetBytes(Convert.ToDouble(value));
         return ComputeHash(bytes);
     }
 
