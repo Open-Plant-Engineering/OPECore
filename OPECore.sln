@@ -13,6 +13,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OPEDbEngine.Domain", "src\O
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OPEDbEngine.Infrastructure", "src\OPEDbEngine.Infrastructure\OPEDbEngine.Infrastructure.csproj", "{328BF00B-E861-5662-3EF5-517E9B8CA982}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OPEDbEngine.Tests", "tests\OPEDbEngine.Tests\OPEDbEngine.Tests.csproj", "{984DA7A5-74CC-87BF-7E36-7C9620E199CE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -39,8 +41,15 @@ Global
 		{328BF00B-E861-5662-3EF5-517E9B8CA982}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{328BF00B-E861-5662-3EF5-517E9B8CA982}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{328BF00B-E861-5662-3EF5-517E9B8CA982}.Release|Any CPU.Build.0 = Release|Any CPU
+		{984DA7A5-74CC-87BF-7E36-7C9620E199CE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{984DA7A5-74CC-87BF-7E36-7C9620E199CE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{984DA7A5-74CC-87BF-7E36-7C9620E199CE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{984DA7A5-74CC-87BF-7E36-7C9620E199CE}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {95D9EA3D-B8BF-4205-9EB1-5C1456AB01E3}
 	EndGlobalSection
 EndGlobal

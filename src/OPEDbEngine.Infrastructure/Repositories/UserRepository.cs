@@ -1,4 +1,4 @@
-using Dapper;
+﻿using Dapper;
 using OPEDbEngine.Domain.Entities;
 using OPEDbEngine.Domain.Interfaces;
 using StackExchange.Redis;
@@ -44,4 +44,20 @@ public class UserRepository : IUserRepository
 
         return user;
     }
+
+
+    public async Task<Guid> CreateAsync(User user)
+    {
+        using var connection = _db.Create();
+
+        await connection.ExecuteAsync(
+            "INSERT INTO users (id, name, email) VALUES (@Id, @Name, @Email)",
+            user);
+
+        var cacheKey = $"user:{user.Id}";
+        await _redis.KeyDeleteAsync(cacheKey);
+
+        return user.Id;
+    }
+
 }

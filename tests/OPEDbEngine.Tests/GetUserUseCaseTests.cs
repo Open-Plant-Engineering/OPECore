@@ -8,27 +8,46 @@ using OPEDbEngine.Domain.Interfaces;
 public class GetUserUseCaseTests
 {
     [Fact]
-    public async Task Should_Return_User_When_Exists()
+    public async Task Should_Return_User_When_Found()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var id = Guid.NewGuid();
 
         var mockRepo = new Mock<IUserRepository>();
-        mockRepo.Setup(x => x.GetByIdAsync(userId))
-                .ReturnsAsync(new User
-                {
-                    Id = userId,
-                    Name = "Test",
-                    Email = "test@test.com"
-                });
+        mockRepo.Setup(x => x.GetByIdAsync(id))
+            .ReturnsAsync(new User
+            {
+                Id = id,
+                Name = "Atul",
+                Email = "atul@test.com"
+            });
 
         var useCase = new GetUserUseCase(mockRepo.Object);
 
         // Act
-        var result = await useCase.Execute(userId);
+        var result = await useCase.Execute(id);
 
         // Assert
         result.Should().NotBeNull();
-        result!.Name.Should().Be("Test");
+        result!.Email.Should().Be("atul@test.com");
+    }
+
+    [Fact]
+    public async Task Should_Return_Null_When_User_Not_Found()
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+
+        var mockRepo = new Mock<IUserRepository>();
+        mockRepo.Setup(x => x.GetByIdAsync(id))
+            .ReturnsAsync((User?)null);
+
+        var useCase = new GetUserUseCase(mockRepo.Object);
+
+        // Act
+        var result = await useCase.Execute(id);
+
+        // Assert
+        result.Should().BeNull();
     }
 }

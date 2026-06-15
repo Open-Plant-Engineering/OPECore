@@ -19,6 +19,7 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(
 
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<GetUserUseCase>();
+builder.Services.AddScoped<CreateUserUseCase>();
 
 var app = builder.Build();
 
