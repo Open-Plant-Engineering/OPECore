@@ -1,0 +1,18 @@
+﻿syntax = "proto3";
+
+option csharp_namespace = "OPEDbEngine.Contracts";
+
+package health;
+
+// Request
+message HealthRequest {}
+
+// Response
+message HealthResponse {
+  string status = 1;
+}
+
+// Service
+service Health {
+  rpc Check (HealthRequest) returns (HealthResponse);
+}

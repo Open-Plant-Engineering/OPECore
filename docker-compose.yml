@@ -1,0 +1,39 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: ope-postgres
+    environment:
+      POSTGRES_USER: ope
+      POSTGRES_PASSWORD: opepass
+      POSTGRES_DB: opedb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  pgbouncer:
+    image: edoburu/pgbouncer
+    container_name: ope-pgbouncer
+    depends_on:
+      - postgres
+    environment:
+      DB_USER: ope
+      DB_PASSWORD: opepass
+      DB_HOST: postgres
+      DB_NAME: opedb
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 10000
+      DEFAULT_POOL_SIZE: 200
+    ports:
+      - "6432:6432"
+
+  redis:
+    image: redis:7
+    container_name: ope-redis
+    ports:
+      - "6379:6379"
+
+volumes:
+  postgres_data:
