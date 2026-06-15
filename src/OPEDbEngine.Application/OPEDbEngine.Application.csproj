@@ -1,6 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <None Remove="Users\CreateUserUseCase.cs~RF3c3738.TMP" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\OPEDbEngine.Domain\OPEDbEngine.Domain.csproj" />
   </ItemGroup>
 
