@@ -1,17 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using Dapper;
+using OPEDbEngine.Infrastructure.Data;
+using OPEDbEngine.Infrastructure.Service.AttributeSets.Models;
+using System.Security.Cryptography;
 
 namespace OPEDbEngine.Infrastructure.Service.AttributeSets
 {
-    using Dapper;
-    using OPEDbEngine.Infrastructure.Data;
-    using OPEDbEngine.Infrastructure.Service.AttributeSets.Models;
-    using System.Data;
-    using System.Security.Cryptography;
-
     public class AttributeSetService : IAttributeSetService
     {
         private readonly DbConnectionFactory _db;
@@ -26,6 +19,9 @@ namespace OPEDbEngine.Infrastructure.Service.AttributeSets
             IEnumerable<AttributeItem> changes)
         {
             using var conn = _db.Create();
+            conn.Open();
+
+            using var tx = conn.BeginTransaction();
 
             // 1. Load existing attributes
             var current = new Dictionary<int, AttributeItem>();
@@ -34,9 +30,10 @@ namespace OPEDbEngine.Infrastructure.Service.AttributeSets
             {
                 var rows = await conn.QueryAsync<AttributeItem>(
                     @"SELECT key as Key, value_hash as ValueHash, value_type as ValueType
-                  FROM attribute_set_items
-                  WHERE set_id = @SetId",
-                    new { SetId = existingSetId });
+                      FROM attribute_set_items
+                      WHERE set_id = @SetId",
+                    new { SetId = existingSetId },
+                    tx);
 
                 current = rows.ToDictionary(x => x.Key, x => x);
             }
@@ -56,37 +53,58 @@ namespace OPEDbEngine.Infrastructure.Service.AttributeSets
 
             var hash = ComputeHash(bytes);
 
-            // 4. Check if set already exists
+            // 4. Check existing set
             var existing = await conn.ExecuteScalarAsync<Guid?>(
                 "SELECT id FROM attribute_sets WHERE hash = @Hash",
-                new { Hash = hash });
+                new { Hash = hash },
+                tx);
 
             if (existing.HasValue)
+            {
+                tx.Commit();
                 return existing.Value;
+            }
 
             // 5. Create new set
             var newSetId = Guid.NewGuid();
 
-            await conn.ExecuteAsync(
-                "INSERT INTO attribute_sets (id, hash) VALUES (@Id, @Hash)",
-                new { Id = newSetId, Hash = hash });
+            try
+            {
+                await conn.ExecuteAsync(
+                    "INSERT INTO attribute_sets (id, hash) VALUES (@Id, @Hash)",
+                    new { Id = newSetId, Hash = hash },
+                    tx);
+            }
+            catch
+            {
+                // race condition fallback
+                var existingId = await conn.ExecuteScalarAsync<Guid>(
+                    "SELECT id FROM attribute_sets WHERE hash = @Hash",
+                    new { Hash = hash },
+                    tx);
+
+                tx.Commit();
+                return existingId;
+            }
 
             // 6. Insert items
             foreach (var item in current.Values)
             {
                 await conn.ExecuteAsync(
                     @"INSERT INTO attribute_set_items
-                (set_id, key, value_hash, value_type)
-                VALUES (@SetId, @Key, @ValueHash, @ValueType)",
+                      (set_id, key, value_hash, value_type)
+                      VALUES (@SetId, @Key, @ValueHash, @ValueType)",
                     new
                     {
                         SetId = newSetId,
                         Key = item.Key,
                         ValueHash = item.ValueHash,
                         ValueType = item.ValueType
-                    });
+                    },
+                    tx);
             }
 
+            tx.Commit();
             return newSetId;
         }
 
@@ -114,5 +132,4 @@ namespace OPEDbEngine.Infrastructure.Service.AttributeSets
             return ms.ToArray();
         }
     }
-
 }
