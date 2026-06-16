@@ -1,3 +1,5 @@
+[assembly: CollectionBehavior(DisableTestParallelization = true)]
+
 public class DbFixture : IAsyncLifetime
 {
     public async Task InitializeAsync()

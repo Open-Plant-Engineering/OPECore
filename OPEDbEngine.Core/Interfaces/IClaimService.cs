@@ -7,5 +7,9 @@ namespace OPEDbEngine.Core.Interfaces
     {
         Task ClaimNodeAsync(Guid nodeId, Guid sessionId);
         Task ValidateClaimAsync(Guid nodeId, Guid sessionId, IDbConnection conn, IDbTransaction tx);
+        
+        Task ReleaseNodeAsync(Guid nodeId, Guid sessionId);
+
+        Task ForceReleaseAsync(Guid nodeId, Guid sessionId, string reason);
     }
 }
