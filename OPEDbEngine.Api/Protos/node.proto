@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+option csharp_namespace = "OPEDbEngine.Api";
+
+service NodeService {
+  rpc GetNode (GetNodeRequest) returns (NodeResponse);
+}
+
+message GetNodeRequest {
+  string nodeId = 1;
+}
+
+message NodeResponse {
+  string nodeId = 1;
+  string versionId = 2;
+  string type = 3;
+  string owner = 4;
+
+  repeated Attribute attributes = 5;
+}
+
+message Attribute {
+  int32 key = 1;
+  int32 valueType = 2;
+  string value = 3;
+}
