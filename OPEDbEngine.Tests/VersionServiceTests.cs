@@ -4,7 +4,7 @@ using OPEDbEngine.Infrastructure.Data;
 using OPEDbEngine.Infrastructure.Services.Versioning;
 using Xunit;
 
-public class VersionServiceTests
+public class VersionServiceTests: IClassFixture<DbFixture>
 {
     private DbConnectionFactory CreateDb()
     {

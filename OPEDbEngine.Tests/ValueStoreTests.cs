@@ -4,7 +4,7 @@ using OPEDbEngine.Infrastructure.Services.Hashing;
 using OPEDbEngine.Infrastructure.Services.ValueStore;
 using Xunit;
 
-public class ValueStoreTests
+public class ValueStoreTests: IClassFixture<DbFixture>
 {
     private ValueStoreService CreateService()
     {

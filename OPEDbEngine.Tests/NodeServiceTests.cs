@@ -4,7 +4,7 @@ using OPEDbEngine.Infrastructure.Services.AttributeSets;
 using OPEDbEngine.Infrastructure.Services.Nodes;
 using Xunit;
 
-public class NodeServiceTests
+public class NodeServiceTests: IClassFixture<DbFixture>
 {
     private DbConnectionFactory CreateDb()
     {

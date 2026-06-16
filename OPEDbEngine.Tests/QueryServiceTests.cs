@@ -7,10 +7,11 @@ using OPEDbEngine.Infrastructure.Services.Nodes;
 using OPEDbEngine.Infrastructure.Services.Query;
 using OPEDbEngine.Infrastructure.Services.ValueStore;
 using OPEDbEngine.Infrastructure.Services.Versioning;
+using OPEDbEngine.Infrastructure.Services.Claiming;
 using Xunit;
 using Dapper;
 
-public class QueryServiceTests
+public class QueryServiceTests: IClassFixture<DbFixture>
 {
     private DbConnectionFactory Db() =>
         new DbConnectionFactory("Host=localhost;Port=5432;Database=opedb;Username=ope;Password=opepass");
@@ -25,7 +26,8 @@ public class QueryServiceTests
         var attrSet = new AttributeSetService();
         var version = new VersionService();
         var node = new NodeService(db, attrSet);
-        var cmd = new AttributeCommandService(db, attrSet, version);
+        var claim = new ClaimService(db);
+        var cmd = new AttributeCommandService(db, attrSet, version, claim);
         var query = new QueryService(db);
 
         var nodeId = Guid.NewGuid();
@@ -37,6 +39,8 @@ public class QueryServiceTests
 
         var hash100 = await valueStore.StoreNumberAsync(100d);
 
+        await claim.ClaimNodeAsync(nodeId, session); 
+        
         var v2 = await cmd.SetAttributeAsync(
             nodeId,
             v1,
@@ -71,5 +75,4 @@ public class QueryServiceTests
             a.Key == 1 &&
             (double)a.Value! == 100d);
     }
-
 }

@@ -4,7 +4,8 @@ using OPEDbEngine.Infrastructure.Data;
 using OPEDbEngine.Infrastructure.Services.AttributeSets;
 using Xunit;
 
-public class AttributeSetTests
+[assembly: CollectionBehavior(DisableTestParallelization = true)]
+public class AttributeSetTests: IClassFixture<DbFixture>
 {
     private AttributeSetService CreateService(out DbConnectionFactory db)
     {

@@ -5,9 +5,10 @@ using OPEDbEngine.Infrastructure.Services.Hashing;
 using OPEDbEngine.Infrastructure.Services.Nodes;
 using OPEDbEngine.Infrastructure.Services.ValueStore;
 using OPEDbEngine.Infrastructure.Services.Versioning;
+using OPEDbEngine.Infrastructure.Services.Claiming;
 using Xunit;
 
-public class SeedTests
+public class SeedTests: IClassFixture<DbFixture>
 {
     [Fact]
     public async Task Seed_Node_For_Grpc_Test()
@@ -20,7 +21,8 @@ public class SeedTests
         var attrSet = new AttributeSetService();
         var version = new VersionService();
         var nodeService = new NodeService(db, attrSet);
-        var cmd = new AttributeCommandService(db, attrSet, version);
+        var claim = new ClaimService(db);
+        var cmd = new AttributeCommandService(db, attrSet, version, claim);
 
         var nodeId = Guid.NewGuid();
         var session = Guid.NewGuid();
@@ -29,6 +31,8 @@ public class SeedTests
 
         var hash100 = await valueStore.StoreNumberAsync(100d);
 
+        await claim.ClaimNodeAsync(nodeId, session); 
+        
         var v2 = await cmd.SetAttributeAsync(
             nodeId,
             v1,

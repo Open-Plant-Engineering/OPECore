@@ -11,15 +11,18 @@ namespace OPEDbEngine.Infrastructure.Services.Attributes
         private readonly DbConnectionFactory _db;
         private readonly IAttributeSetService _attrService;
         private readonly IVersionService _versionService;
+        private readonly IClaimService _claim;
 
         public AttributeCommandService(
             DbConnectionFactory db,
             IAttributeSetService attrService,
-            IVersionService versionService)
+            IVersionService versionService,
+            IClaimService claimService)
         {
             _db = db;
             _attrService = attrService;
             _versionService = versionService;
+            _claim = claimService;
         }
 
         public async Task<Guid> SetAttributeAsync(
@@ -54,7 +57,9 @@ namespace OPEDbEngine.Infrastructure.Services.Attributes
             conn.Open();
 
             using var tx = conn.BeginTransaction();
-
+            
+            await _claim.ValidateClaimAsync(nodeId, sessionId, conn, tx);
+            
             // ✅ 1. Validate node exists
             var exists = await conn.ExecuteScalarAsync<int>(
                 "SELECT 1 FROM nodes WHERE id = @Id LIMIT 1",
