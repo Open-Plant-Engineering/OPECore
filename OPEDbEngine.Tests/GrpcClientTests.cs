@@ -88,7 +88,101 @@ public class GrpcClientTests
             NodeId = nodeId
         });
         
-        nodeAfterRemove.Attributes.Should().BeEmpty();
-        
+        nodeAfterRemove.Attributes.Should().BeEmpty();   
     }
+
+    [Fact]
+    public async Task Should_Bulk_Set_Attributes()
+    {
+        using var channel = GrpcChannel.ForAddress("http://localhost:5217");
+        var client = new NodeService.NodeServiceClient(channel);
+
+        var nodeId = Guid.NewGuid().ToString();
+        var session = Guid.NewGuid().ToString();
+
+        var v1 = (await client.CreateNodeAsync(new CreateNodeRequest
+        {
+            NodeId = nodeId,
+            Type = "PIPE",
+            Owner = "P",
+            SessionId = session
+        })).VersionId;
+
+        await client.ClaimNodeAsync(new ClaimNodeRequest
+        {
+            NodeId = nodeId,
+            SessionId = session
+        });
+
+        var v100 = await client.StoreValueAsync(new StoreValueRequest { NumberValue = 100 });
+        var v200 = await client.StoreValueAsync(new StoreValueRequest { NumberValue = 200 });
+
+        var res = await client.BulkSetAttributesAsync(new BulkSetAttributesRequest
+        {
+            NodeId = nodeId,
+            VersionId = v1,
+            SessionId = session,
+            Attributes =
+            {
+                new AttributeWrite { Key = 1, ValueHash = v100.ValueHash, ValueType = v100.ValueType },
+                new AttributeWrite { Key = 2, ValueHash = v200.ValueHash, ValueType = v200.ValueType }
+            }
+        });
+
+        var node = await client.GetNodeAsync(new GetNodeRequest { NodeId = nodeId });
+
+        node.Attributes.Should().HaveCount(2);
+    }
+
+    // [Fact]
+    // public async Task Should_Bulk_Remove_Attributes()
+    // {
+    //     using var channel = GrpcChannel.ForAddress("http://localhost:5217");
+    //     var client = new NodeService.NodeServiceClient(channel);
+    // 
+    //     var nodeId = Guid.NewGuid().ToString();
+    //     var session = Guid.NewGuid().ToString();
+    // 
+    //     var v1 = (await client.CreateNodeAsync(new CreateNodeRequest
+    //     {
+    //         NodeId = nodeId,
+    //         Type = "PIPE",
+    //         Owner = "P",
+    //         SessionId = session
+    //     })).VersionId;
+    // 
+    //     await client.ClaimNodeAsync(new ClaimNodeRequest
+    //     {
+    //         NodeId = nodeId,
+    //         SessionId = session
+    //     });
+    // 
+    //     var v100 = await client.StoreValueAsync(new StoreValueRequest { NumberValue = 100 });
+    //     var v200 = await client.StoreValueAsync(new StoreValueRequest { NumberValue = 200 });
+    // 
+    //     var v2 = (await client.BulkSetAttributesAsync(new BulkSetAttributesRequest
+    //     {
+    //         NodeId = nodeId,
+    //         VersionId = v1,
+    //         SessionId = session,
+    //         Attributes =
+    //         {
+    //             new AttributeWrite { Key = 1, ValueHash = v100.ValueHash, ValueType = v100.ValueType },
+    //             new AttributeWrite { Key = 2, ValueHash = v200.ValueHash, ValueType = v200.ValueType }
+    //         }
+    //     })).NewVersionId;
+    // 
+    //     var v3 = (await client.BulkRemoveAttributesAsync(new BulkRemoveAttributesRequest
+    //     {
+    //         NodeId = nodeId,
+    //         VersionId = v2,
+    //         SessionId = session,
+    //         Keys = { 1, 2 }
+    //     })).NewVersionId;
+    // 
+    //     var node = await client.GetNodeAsync(new GetNodeRequest { NodeId = nodeId });
+    // 
+    //     node.Attributes.Should().BeEmpty();
+    // }
+
 }

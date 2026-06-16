@@ -8,6 +8,7 @@ using InfraNodeService = OPEDbEngine.Infrastructure.Services.Nodes.NodeService;
 using OPEDbEngine.Infrastructure.Services.ValueStore;
 using OPEDbEngine.Infrastructure.Services.Hashing;
 using OPEDbEngine.Core.Interfaces;
+using OPEDbEngine.Core.Models;
 
 namespace OPEDbEngine.Api.Services
 {
@@ -210,5 +211,54 @@ namespace OPEDbEngine.Api.Services
                 throw new RpcException(new Status(StatusCode.Internal, ex.Message));
             }
         }
+
+        public override async Task<BulkSetAttributesResponse> BulkSetAttributes(
+            BulkSetAttributesRequest request,
+            ServerCallContext context)
+        {
+            var nodeId = Guid.Parse(request.NodeId);
+            var versionId = Guid.Parse(request.VersionId);
+            var sessionId = Guid.Parse(request.SessionId);
+
+            var items = request.Attributes.Select(a => new AttributeItem
+            {
+                Key = a.Key,
+                ValueHash = a.ValueHash.ToByteArray(),
+                ValueType = (short)a.ValueType
+            });
+
+            var newVersion = await _commandService.BulkSetAttributesAsync(
+                nodeId,
+                versionId,
+                items,
+                sessionId);
+
+            return new BulkSetAttributesResponse
+            {
+                NewVersionId = newVersion.ToString()
+            };
+        }
+
+        public override async Task<BulkRemoveAttributesResponse> BulkRemoveAttributes(
+            BulkRemoveAttributesRequest request,
+            ServerCallContext context)
+        {
+            var nodeId = Guid.Parse(request.NodeId);
+            var versionId = Guid.Parse(request.VersionId);
+            var sessionId = Guid.Parse(request.SessionId);
+
+            // ✅ call single remove logic but multiple keys
+            var newVersion = await _commandService.RemoveAttributesAsync(
+                nodeId,
+                versionId,
+                request.Keys,
+                sessionId);
+
+            return new BulkRemoveAttributesResponse
+            {
+                NewVersionId = newVersion.ToString()
+            };
+        }
+
     }
 }

@@ -10,6 +10,8 @@ service NodeService {
   rpc GetNode (GetNodeRequest) returns (NodeResponse);
   rpc StoreValue (StoreValueRequest) returns (StoreValueResponse);
   rpc RemoveAttribute (RemoveAttributeRequest) returns (RemoveAttributeResponse);
+  rpc BulkSetAttributes (BulkSetAttributesRequest) returns (BulkSetAttributesResponse);
+  rpc BulkRemoveAttributes (BulkRemoveAttributesRequest) returns (BulkRemoveAttributesResponse);
 }
 
 // ✅ CREATE NODE
@@ -93,3 +95,32 @@ message RemoveAttributeRequest {
 message RemoveAttributeResponse {
   string newVersionId = 1;
 }
+
+message BulkSetAttributesRequest {
+  string nodeId = 1;
+  string versionId = 2;
+  repeated AttributeWrite attributes = 3;
+  string sessionId = 4;
+}
+
+message BulkSetAttributesResponse {
+  string newVersionId = 1;
+}
+
+message BulkRemoveAttributesRequest {
+  string nodeId = 1;
+  string versionId = 2;
+  repeated int32 keys = 3;
+  string sessionId = 4;
+}
+
+message BulkRemoveAttributesResponse {
+  string newVersionId = 1;
+}
+
+message AttributeWrite {
+  int32 key = 1;
+  bytes valueHash = 2;
+  int32 valueType = 3;
+}
+
