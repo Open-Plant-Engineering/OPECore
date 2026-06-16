@@ -2,10 +2,53 @@ syntax = "proto3";
 
 option csharp_namespace = "OPEDbEngine.Api";
 
+// ✅ MAIN SERVICE
 service NodeService {
+  rpc CreateNode (CreateNodeRequest) returns (CreateNodeResponse);
+  rpc ClaimNode (ClaimNodeRequest) returns (ClaimNodeResponse);
+  rpc SetAttribute (SetAttributeRequest) returns (SetAttributeResponse);
   rpc GetNode (GetNodeRequest) returns (NodeResponse);
+  rpc StoreValue (StoreValueRequest) returns (StoreValueResponse);
+  rpc RemoveAttribute (RemoveAttributeRequest) returns (RemoveAttributeResponse);
 }
 
+// ✅ CREATE NODE
+message CreateNodeRequest {
+  string nodeId = 1;
+  string type = 2;
+  string owner = 3;
+  string sessionId = 4;
+}
+
+message CreateNodeResponse {
+  string versionId = 1;
+}
+
+// ✅ CLAIM NODE
+message ClaimNodeRequest {
+  string nodeId = 1;
+  string sessionId = 2;
+}
+
+message ClaimNodeResponse {
+  bool success = 1;
+}
+
+// ✅ SET ATTRIBUTE
+message SetAttributeRequest {
+  string nodeId = 1;
+  string versionId = 2;
+  int32 key = 3;
+  bytes valueHash = 4;
+  int32 valueType = 5;
+  string sessionId = 6;
+}
+
+message SetAttributeResponse {
+  string newVersionId = 1;
+}
+
+// ✅ QUERY
 message GetNodeRequest {
   string nodeId = 1;
 }
@@ -23,4 +66,30 @@ message Attribute {
   int32 key = 1;
   int32 valueType = 2;
   string value = 3;
+}
+
+// ✅ STORE VALUE
+message StoreValueRequest {
+  oneof value {
+    string stringValue = 1;
+    double numberValue = 2;
+    bool boolValue = 3;
+  }
+}
+
+message StoreValueResponse {
+  bytes valueHash = 1;
+  int32 valueType = 2;
+}
+
+// ✅ REMOVE ATTRIBUTE
+message RemoveAttributeRequest {
+  string nodeId = 1;
+  string versionId = 2;
+  int32 key = 3;
+  string sessionId = 4;
+}
+
+message RemoveAttributeResponse {
+  string newVersionId = 1;
 }

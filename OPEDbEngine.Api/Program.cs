@@ -5,7 +5,10 @@ using OPEDbEngine.Infrastructure.Services.AttributeSets;
 using OPEDbEngine.Infrastructure.Services.Attributes;
 using OPEDbEngine.Infrastructure.Services.Versioning;
 using OPEDbEngine.Infrastructure.Services.Nodes;
+using OPEDbEngine.Infrastructure.Services.Claiming;
 using OPEDbEngine.Core.Interfaces;
+using OPEDbEngine.Infrastructure.Services.ValueStore;
+using OPEDbEngine.Infrastructure.Services.Hashing;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,6 +21,13 @@ builder.Services.AddScoped<IVersionService, VersionService>();
 builder.Services.AddScoped<IQueryService, QueryService>();
 builder.Services.AddScoped<INodeService, NodeService>();
 builder.Services.AddScoped<IAttributeCommandService, AttributeCommandService>();
+
+builder.Services.AddScoped<NodeService>();
+builder.Services.AddScoped<IClaimService, ClaimService>();
+builder.Services.AddScoped<AttributeCommandService>();
+builder.Services.AddScoped<QueryService>();
+builder.Services.AddScoped<ValueStoreService>();
+builder.Services.AddScoped<IHashService, HashService>();
 
 // Add services to the container.
 builder.Services.AddGrpc();
