@@ -19,27 +19,18 @@ public class QueryServiceTests : IClassFixture<DbFixture>
     [Fact]
     public async Task Should_Read_Updated_Value()
     {
-        var db = Db();
-
-        var hash = new HashService();
-        var valueStore = new ValueStoreService(db, hash);
-        var attrSet = new AttributeSetService();
-        var version = new VersionService();
-        var node = new NodeService(db, attrSet);
-        var claim = new ClaimService(db);
-        var cmd = new AttributeCommandService(db, attrSet, version, claim);
-        var query = new QueryService(db);
+        var ctx = new TestContext();
 
         var nodeId = Guid.NewGuid();
         var session = Guid.NewGuid();
 
-        var v1 = await node.CreateNodeAsync(nodeId, "PIPE", "P", session);
+        var v1 = await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "P", session);
 
-        var hash100 = await valueStore.StoreNumberAsync(100d);
+        var hash100 = await ctx.ValueStore.StoreNumberAsync(100d);
 
-        await claim.ClaimNodeAsync(nodeId, session);
+        await ctx.Claim.ClaimNodeAsync(nodeId, session);
 
-        var v2 = await cmd.SetAttributeAsync(
+        var v2 = await ctx.Command.SetAttributeAsync(
             nodeId,
             v1,
             1,
@@ -47,7 +38,7 @@ public class QueryServiceTests : IClassFixture<DbFixture>
             2,
             session);
 
-        var result = await query.GetNodeAsync(nodeId);
+        var result = await ctx.Query.GetNodeAsync(nodeId);
 
         result.NodeId.Should().Be(nodeId);
         result.VersionId.Should().Be(v2);
@@ -61,31 +52,22 @@ public class QueryServiceTests : IClassFixture<DbFixture>
     [Fact]
     public async Task Should_Read_Old_Version_Data()
     {
-        var db = Db();
-
-        var hash = new HashService();
-        var valueStore = new ValueStoreService(db, hash);
-        var attrSet = new AttributeSetService();
-        var version = new VersionService();
-        var node = new NodeService(db, attrSet);
-        var claim = new ClaimService(db);
-        var cmd = new AttributeCommandService(db, attrSet, version, claim);
-        var query = new QueryService(db);
+        var ctx = new TestContext();
 
         var nodeId = Guid.NewGuid();
         var session = Guid.NewGuid();
 
-        var v1 = await node.CreateNodeAsync(nodeId, "PIPE", "PIPING", session);
+        var v1 = await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "PIPING", session);
 
-        await claim.ClaimNodeAsync(nodeId, session);
+        await ctx.Claim.ClaimNodeAsync(nodeId, session);
 
-        var hash100 = await valueStore.StoreNumberAsync(100d);
-        var hash200 = await valueStore.StoreNumberAsync(200d);
+        var hash100 = await ctx.ValueStore.StoreNumberAsync(100d);
+        var hash200 = await ctx.ValueStore.StoreNumberAsync(200d);
 
-        var v2 = await cmd.SetAttributeAsync(nodeId, v1, 1, hash100, 2, session);
-        var v3 = await cmd.SetAttributeAsync(nodeId, v2, 1, hash200, 2, session);
+        var v2 = await ctx.Command.SetAttributeAsync(nodeId, v1, 1, hash100, 2, session);
+        var v3 = await ctx.Command.SetAttributeAsync(nodeId, v2, 1, hash200, 2, session);
 
-        var old = await query.GetNodeVersionAsync(nodeId, v2);
+        var old = await ctx.Query.GetNodeVersionAsync(nodeId, v2);
 
         old.VersionId.Should().Be(v2);
 
@@ -98,28 +80,19 @@ public class QueryServiceTests : IClassFixture<DbFixture>
     [Fact]
     public async Task Should_Read_Multiple_Attributes()
     {
-        var db = Db();
-
-        var hash = new HashService();
-        var valueStore = new ValueStoreService(db, hash);
-        var attrSet = new AttributeSetService();
-        var version = new VersionService();
-        var node = new NodeService(db, attrSet);
-        var claim = new ClaimService(db);
-        var cmd = new AttributeCommandService(db, attrSet, version, claim);
-        var query = new QueryService(db);
+        var ctx = new TestContext();
 
         var nodeId = Guid.NewGuid();
         var session = Guid.NewGuid();
 
-        var v1 = await node.CreateNodeAsync(nodeId, "PIPE", "PIPING", session);
+        var v1 = await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "PIPING", session);
 
-        await claim.ClaimNodeAsync(nodeId, session);
+        await ctx.Claim.ClaimNodeAsync(nodeId, session);
 
-        var numHash = await valueStore.StoreNumberAsync(100d);
-        var strHash = await valueStore.StoreStringAsync("CS");
+        var numHash = await ctx.ValueStore.StoreNumberAsync(100d);
+        var strHash = await ctx.ValueStore.StoreStringAsync("CS");
 
-        var v2 = await cmd.BulkSetAttributesAsync(
+        var v2 = await ctx.Command.BulkSetAttributesAsync(
             nodeId,
             v1,
             new[]
@@ -139,7 +112,7 @@ public class QueryServiceTests : IClassFixture<DbFixture>
             },
             session);
 
-        var result = await query.GetNodeAsync(nodeId);
+        var result = await ctx.Query.GetNodeAsync(nodeId);
 
         result.Attributes.Should().HaveCount(2);
 

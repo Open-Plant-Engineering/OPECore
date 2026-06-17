@@ -1,8 +1,11 @@
+using System.Data;
+
 using Dapper;
 using OPEDbEngine.Core.Interfaces;
 using OPEDbEngine.Core.Models;
 using OPEDbEngine.Infrastructure.Data;
-using System.Data;
+using OPEDbEngine.Infrastructure.Repositories;
+using OPEDbEngine.Infrastructure.Models;
 
 namespace OPEDbEngine.Infrastructure.Services.Attributes
 {
@@ -12,17 +15,27 @@ namespace OPEDbEngine.Infrastructure.Services.Attributes
         private readonly IAttributeSetService _attrService;
         private readonly IVersionService _versionService;
         private readonly IClaimService _claim;
+        private readonly AttributeRepository _attributeRepo;
+        private readonly NodeRepository _nodeRepo;
+        private readonly VersionRepository _versionRepo;
+
 
         public AttributeCommandService(
             DbConnectionFactory db,
             IAttributeSetService attrService,
             IVersionService versionService,
-            IClaimService claimService)
+            IClaimService claimService,
+            AttributeRepository attributeRepo,
+            NodeRepository nodeRepo,
+            VersionRepository versionRepo)
         {
             _db = db;
             _attrService = attrService;
             _versionService = versionService;
             _claim = claimService;
+            _attributeRepo = attributeRepo;
+            _nodeRepo = nodeRepo;
+            _versionRepo = versionRepo;
         }
 
         public async Task<Guid> SetAttributeAsync(
@@ -61,19 +74,11 @@ namespace OPEDbEngine.Infrastructure.Services.Attributes
             await _claim.ValidateClaimAsync(nodeId, sessionId, conn, tx);
             
             // ✅ 1. Validate node exists
-            var exists = await conn.ExecuteScalarAsync<int>(
-                "SELECT 1 FROM nodes WHERE id = @Id LIMIT 1",
-                new { Id = nodeId },
-                tx);
-
-            if (exists != 1)
+            if (!await _nodeRepo.Exists(conn, nodeId, tx))
                 throw new InvalidOperationException("Node does not exist.");
 
             // ✅ 2. Get current version (NON NULL GUARANTEE)
-            var currentVersion = await conn.ExecuteScalarAsync<Guid?>(
-                "SELECT current_version_id FROM nodes WHERE id = @Id",
-                new { Id = nodeId },
-                tx);
+            var currentVersion = await _versionRepo.GetCurrentVersion(conn, nodeId, tx);
 
             if (currentVersion == null)
                 throw new InvalidOperationException("Node has no version.");
@@ -82,11 +87,10 @@ namespace OPEDbEngine.Infrastructure.Services.Attributes
                 throw new InvalidOperationException("Version mismatch.");
 
             // ✅ 3. Get current attribute set (STRICT resolution)
-            var currentSet = await conn.ExecuteScalarAsync<Guid>(
-                @"SELECT attribute_set_id 
-                  FROM versions 
-                  WHERE id = @Id",
-                new { Id = currentVersion.Value },   // ✅ FORCE NON-NULL
+            var currentSet = await _versionRepo.GetAttributeSetId(
+                conn,
+                currentVersion.Value,
+                nodeId,
                 tx);
 
             // ✅ 4. Build new attribute set
@@ -121,63 +125,39 @@ namespace OPEDbEngine.Infrastructure.Services.Attributes
 
             using var tx = conn.BeginTransaction();
 
-            // ✅ Print versions table columns
-            var columns = await conn.QueryAsync<string>(
-                @"SELECT column_name
-                  FROM information_schema.columns
-                  WHERE table_name = 'versions'
-                  ORDER BY ordinal_position");
-
             try
             {
                 // ✅ validate claim
                 await _claim.ValidateClaimAsync(nodeId, sessionId, conn, tx);
 
-                var currentSet = await conn.ExecuteScalarAsync<Guid>(
-                    @"SELECT attribute_set_id
-                      FROM versions
-                      WHERE id = @VersionId AND node_id = @NodeId",
-                    new { VersionId = expectedVersionId, NodeId = nodeId },
+                var currentSet = await _versionRepo.GetAttributeSetId(
+                    conn,
+                    expectedVersionId,
+                    nodeId,
                     tx);
 
                 // ✅ read items
-                var items = (await conn.QueryAsync<AttributeItem>(
-                    @"SELECT key, value_hash as ValueHash, value_type as ValueType
-                      FROM attribute_set_items
-                      WHERE set_id = @SetId",
-                    new { SetId = currentSet },
-                    tx)).ToList();
+                var rows = await _attributeRepo.GetBySetId(conn, currentSet, tx);
+
+                var items = rows.Select(r => new AttributeItem
+                {
+                    Key = r.Key,
+                    ValueHash = r.ValueHash,
+                    ValueType = r.ValueType
+                }).ToList();
 
                 // ✅ remove key
                 var filtered = items.Where(x => x.Key != key).ToList();
                 if (filtered.Count == 0)
                 {
-                    Console.WriteLine("⚠️ All attributes removed → creating empty set");
                     filtered = new List<AttributeItem>();
                 }
 
                 // ✅ build new set
                 Guid newSet;
-
                 if (filtered.Count == 0)
                 {
-                    // ✅ Try to find existing empty set first
-                    newSet = await conn.ExecuteScalarAsync<Guid?>(
-                        @"SELECT id FROM attribute_sets WHERE id NOT IN
-                          (SELECT DISTINCT set_id FROM attribute_set_items)
-                          LIMIT 1",
-                        transaction: tx) ?? Guid.NewGuid();
-
-                    // ✅ If not found, create new empty set
-                    if (newSet == Guid.Empty)
-                    {
-                        newSet = Guid.NewGuid();
-
-                        await conn.ExecuteAsync(
-                            "INSERT INTO attribute_sets (id) VALUES (@Id)",
-                            new { Id = newSet },
-                            tx);
-                    }
+                    newSet = await _attrService.GetOrCreateEmptySetAsync(conn, tx);
                 }
                 else
                 {
@@ -203,7 +183,6 @@ namespace OPEDbEngine.Infrastructure.Services.Attributes
             }
             catch (Exception ex)
             {
-                Console.WriteLine("❌ RemoveAttribute FAILED");
                 Console.WriteLine(ex.ToString());
 
                 tx.Rollback();
@@ -223,19 +202,20 @@ namespace OPEDbEngine.Infrastructure.Services.Attributes
 
             await _claim.ValidateClaimAsync(nodeId, sessionId, conn, tx);
 
-            var currentSet = await conn.ExecuteScalarAsync<Guid>(
-                @"SELECT attribute_set_id
-                  FROM versions
-                  WHERE id = @VersionId AND node_id = @NodeId",
-                new { VersionId = expectedVersionId, NodeId = nodeId },
+            var currentSet = await _versionRepo.GetAttributeSetId(
+                conn,
+                expectedVersionId,
+                nodeId,
                 tx);
 
-            var items = (await conn.QueryAsync<AttributeItem>(
-                @"SELECT key, value_hash as ValueHash, value_type as ValueType
-                  FROM attribute_set_items
-                  WHERE set_id = @SetId",
-                new { SetId = currentSet },
-                tx)).ToList();
+            var rows = await _attributeRepo.GetBySetId(conn, currentSet, tx);
+            
+            var items = rows.Select(r => new AttributeItem
+            {
+                Key = r.Key,
+                ValueHash = r.ValueHash,
+                ValueType = r.ValueType
+            }).ToList();
 
             var keySet = keys.ToHashSet();
 

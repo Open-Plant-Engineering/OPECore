@@ -21,30 +21,22 @@ public class AttributeCommandTests: IClassFixture<DbFixture>
     [Fact]
     public async Task Should_Update_Attribute_And_Create_New_Version()
     {
-        var db = CreateDb();
-
-        var hash = new HashService();
-        var valueStore = new ValueStoreService(db, hash);
-        var attrSet = new AttributeSetService();
-        var version = new VersionService();
-        var nodeService = new NodeService(db, attrSet);
-        var claim = new ClaimService(db);
-        var command = new AttributeCommandService(db, attrSet, version, claim);
+        var ctx = new TestContext();
 
         var nodeId = Guid.NewGuid();
         var session = Guid.NewGuid();
 
-        var v1 = await nodeService.CreateNodeAsync(
+        var v1 = await ctx.Node.CreateNodeAsync(
             nodeId,
             "PIPE",
             "PIPING",
             session);
 
-        var hash100 = await valueStore.StoreNumberAsync(100d);
+        var hash100 = await ctx.ValueStore.StoreNumberAsync(100d);
 
-        await claim.ClaimNodeAsync(nodeId, session);
+        await ctx.Claim.ClaimNodeAsync(nodeId, session);
 
-        var v2 = await command.SetAttributeAsync(
+        var v2 = await ctx.Command.SetAttributeAsync(
             nodeId,
             v1,
             1,
@@ -58,26 +50,18 @@ public class AttributeCommandTests: IClassFixture<DbFixture>
     [Fact]
     public async Task Should_Update_When_Node_Is_Claimed()
     {
-        var db = CreateDb();
-
-        var hash = new HashService();
-        var valueStore = new ValueStoreService(db, hash);
-        var attrSet = new AttributeSetService();
-        var version = new VersionService();
-        var claim = new ClaimService(db);
-        var nodeService = new NodeService(db, attrSet);
-        var command = new AttributeCommandService(db, attrSet, version, claim);
+        var ctx = new TestContext();
 
         var nodeId = Guid.NewGuid();
         var session = Guid.NewGuid();
 
-        var v1 = await nodeService.CreateNodeAsync(nodeId, "PIPE", "PIPING", session);
+        var v1 = await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "PIPING", session);
 
-        await claim.ClaimNodeAsync(nodeId, session);
+        await ctx.Claim.ClaimNodeAsync(nodeId, session);
 
-        var hash100 = await valueStore.StoreNumberAsync(100d);
+        var hash100 = await ctx.ValueStore.StoreNumberAsync(100d);
 
-        var v2 = await command.SetAttributeAsync(
+        var v2 = await ctx.Command.SetAttributeAsync(
             nodeId,
             v1,
             1,
@@ -91,24 +75,18 @@ public class AttributeCommandTests: IClassFixture<DbFixture>
     [Fact]
     public async Task Should_Reject_Without_Claim()
     {
-        var db = CreateDb();
+        var ctx = new TestContext();
 
-        var hash = new HashService();
-        var valueStore = new ValueStoreService(db, hash);
-        var attrSet = new AttributeSetService();
-        var version = new VersionService();
-        var claim = new ClaimService(db);
-        var nodeService = new NodeService(db, attrSet);
-        var command = new AttributeCommandService(db, attrSet, version, claim);
-
+        var nodeService = new NodeService(ctx.Db, ctx.AttributeSet);
+        
         var nodeId = Guid.NewGuid();
         var session = Guid.NewGuid();
 
         var v1 = await nodeService.CreateNodeAsync(nodeId, "PIPE", "PIPING", session);
 
-        var hash100 = await valueStore.StoreNumberAsync(100d);
+        var hash100 = await ctx.ValueStore.StoreNumberAsync(100d);
 
-        var act = async () => await command.SetAttributeAsync(
+        var act = async () => await ctx.Command.SetAttributeAsync(
             nodeId,
             v1,
             1,
@@ -124,27 +102,19 @@ public class AttributeCommandTests: IClassFixture<DbFixture>
     [Fact]
     public async Task Should_Reject_When_Claimed_By_Other_Session()
     {
-        var db = CreateDb();
-
-        var hash = new HashService();
-        var valueStore = new ValueStoreService(db, hash);
-        var attrSet = new AttributeSetService();
-        var version = new VersionService();
-        var claim = new ClaimService(db);
-        var nodeService = new NodeService(db, attrSet);
-        var command = new AttributeCommandService(db, attrSet, version, claim);
+        var ctx = new TestContext();
 
         var nodeId = Guid.NewGuid();
         var ownerSession = Guid.NewGuid();
         var otherSession = Guid.NewGuid();
 
-        var v1 = await nodeService.CreateNodeAsync(nodeId, "PIPE", "PIPING", ownerSession);
+        var v1 = await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "PIPING", ownerSession);
 
-        await claim.ClaimNodeAsync(nodeId, ownerSession);
+        await ctx.Claim.ClaimNodeAsync(nodeId, ownerSession);
 
-        var hash100 = await valueStore.StoreNumberAsync(100d);
+        var hash100 = await ctx.ValueStore.StoreNumberAsync(100d);
 
-        var act = async () => await command.SetAttributeAsync(
+        var act = async () => await ctx.Command.SetAttributeAsync(
             nodeId,
             v1,
             1,
@@ -160,27 +130,19 @@ public class AttributeCommandTests: IClassFixture<DbFixture>
     [Fact]
     public async Task Should_Set_Multiple_Attributes()
     {
-        var db = CreateDb();
-
-        var hash = new HashService();
-        var valueStore = new ValueStoreService(db, hash);
-        var attrSet = new AttributeSetService();
-        var version = new VersionService();
-        var claim = new ClaimService(db);
-        var nodeService = new NodeService(db, attrSet);
-        var command = new AttributeCommandService(db, attrSet, version, claim);
+        var ctx = new TestContext();
 
         var nodeId = Guid.NewGuid();
         var session = Guid.NewGuid();
 
-        var v1 = await nodeService.CreateNodeAsync(nodeId, "PIPE", "PIPING", session);
+        var v1 = await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "PIPING", session);
 
-        await claim.ClaimNodeAsync(nodeId, session);
+        await ctx.Claim.ClaimNodeAsync(nodeId, session);
 
-        var numHash = await valueStore.StoreNumberAsync(100d);
-        var strHash = await valueStore.StoreStringAsync("CS");
+        var numHash = await ctx.ValueStore.StoreNumberAsync(100d);
+        var strHash = await ctx.ValueStore.StoreStringAsync("CS");
 
-        var v2 = await command.BulkSetAttributesAsync(
+        var v2 = await ctx.Command.BulkSetAttributesAsync(
             nodeId,
             v1,
             new[]
@@ -206,28 +168,20 @@ public class AttributeCommandTests: IClassFixture<DbFixture>
     [Fact]
     public async Task Should_Reject_Version_Mismatch()
     {
-        var db = CreateDb();
-
-        var hash = new HashService();
-        var valueStore = new ValueStoreService(db, hash);
-        var attrSet = new AttributeSetService();
-        var version = new VersionService();
-        var claim = new ClaimService(db);
-        var nodeService = new NodeService(db, attrSet);
-        var command = new AttributeCommandService(db, attrSet, version, claim);
+        var ctx = new TestContext();
 
         var nodeId = Guid.NewGuid();
         var session = Guid.NewGuid();
 
-        var v1 = await nodeService.CreateNodeAsync(nodeId, "PIPE", "PIPING", session);
+        var v1 = await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "PIPING", session);
 
-        await claim.ClaimNodeAsync(nodeId, session);
+        await ctx.Claim.ClaimNodeAsync(nodeId, session);
 
         var wrongVersion = Guid.NewGuid();
 
-        var hash100 = await valueStore.StoreNumberAsync(100d);
+        var hash100 = await ctx.ValueStore.StoreNumberAsync(100d);
 
-        var act = async () => await command.SetAttributeAsync(
+        var act = async () => await ctx.Command.SetAttributeAsync(
             nodeId,
             wrongVersion,
             1,

@@ -116,5 +116,38 @@ namespace OPEDbEngine.Infrastructure.Services.AttributeSets
 
             return ms.ToArray();
         }
+
+        public async Task<Guid> GetOrCreateEmptySetAsync(
+            IDbConnection conn,
+            IDbTransaction tx)
+        {
+            // ✅ Try to find existing empty set
+            var existing = await conn.ExecuteScalarAsync<Guid?>(
+                @"SELECT id 
+                  FROM attribute_sets 
+                  WHERE NOT EXISTS (
+                      SELECT 1 FROM attribute_set_items i 
+                      WHERE i.set_id = attribute_sets.id
+                  )
+                  LIMIT 1",
+                transaction: tx);
+        
+            if (existing != null)
+                return existing.Value;
+        
+            // ✅ Create new empty set
+            var newId = Guid.NewGuid();
+        
+            // ✅ IMPORTANT: hash must NOT be NULL
+            var emptyHash = System.Security.Cryptography.SHA256.HashData(Array.Empty<byte>());
+        
+            await conn.ExecuteAsync(
+                @"INSERT INTO attribute_sets (id, hash)
+                  VALUES (@Id, @Hash)",
+                new { Id = newId, Hash = emptyHash },
+                tx);
+        
+            return newId;
+        }
     }
 }

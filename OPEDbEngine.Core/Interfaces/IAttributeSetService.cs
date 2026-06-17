@@ -10,5 +10,9 @@ namespace OPEDbEngine.Core.Interfaces
             IEnumerable<AttributeItem> changes,
             IDbConnection conn,
             IDbTransaction tx);
+
+        Task<Guid> GetOrCreateEmptySetAsync(
+            IDbConnection conn,
+            IDbTransaction tx);
     }
 }
