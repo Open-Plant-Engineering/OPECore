@@ -54,10 +54,7 @@ namespace OPEDbEngine.Infrastructure.Services.AttributeSets
             var hash = ComputeHash(bytes);
 
             // ✅ 4. Check existing set
-            var existing = await conn.ExecuteScalarAsync<Guid?>(
-                "SELECT id FROM attribute_sets WHERE hash = @Hash",
-                new { Hash = hash },
-                tx);
+            var existing = await _attributeRepo.GetSetIdByHash(conn, hash, tx);
 
             if (existing.HasValue)
                 return existing.Value;
@@ -67,38 +64,18 @@ namespace OPEDbEngine.Infrastructure.Services.AttributeSets
 
             try
             {
-                await conn.ExecuteAsync(
-                    "INSERT INTO attribute_sets (id, hash) VALUES (@Id, @Hash)",
-                    new { Id = newSetId, Hash = hash },
-                    tx);
+                await _attributeRepo.InsertAttributeSet(conn, newSetId, hash, tx);
             }
             catch
             {
                 // ✅ concurrent insert safe
-                var existingId = await conn.ExecuteScalarAsync<Guid>(
-                    "SELECT id FROM attribute_sets WHERE hash = @Hash",
-                    new { Hash = hash },
-                    tx);
+                var existingId = await _attributeRepo.GetSetIdByHash(conn, hash, tx);
+                return existingId!.Value;
 
-                return existingId;
             }
 
             // ✅ 6. Insert items
-            foreach (var item in current.Values)
-            {
-                await conn.ExecuteAsync(
-                    @"INSERT INTO attribute_set_items
-                      (set_id, key, value_hash, value_type)
-                      VALUES (@SetId, @Key, @ValueHash, @ValueType)",
-                    new
-                    {
-                        SetId = newSetId,
-                        Key = item.Key,
-                        ValueHash = item.ValueHash,
-                        ValueType = item.ValueType
-                    },
-                    tx);
-            }
+            await _attributeRepo.InsertItems(conn, newSetId, current.Values, tx);
 
             return newSetId;
         }
@@ -132,15 +109,7 @@ namespace OPEDbEngine.Infrastructure.Services.AttributeSets
             IDbTransaction tx)
         {
             // ✅ Try to find existing empty set
-            var existing = await conn.ExecuteScalarAsync<Guid?>(
-                @"SELECT id 
-                  FROM attribute_sets 
-                  WHERE NOT EXISTS (
-                      SELECT 1 FROM attribute_set_items i 
-                      WHERE i.set_id = attribute_sets.id
-                  )
-                  LIMIT 1",
-                transaction: tx);
+            var existing = await _attributeRepo.GetEmptySet(conn, tx);
         
             if (existing != null)
                 return existing.Value;
@@ -151,11 +120,7 @@ namespace OPEDbEngine.Infrastructure.Services.AttributeSets
             // ✅ IMPORTANT: hash must NOT be NULL
             var emptyHash = System.Security.Cryptography.SHA256.HashData(Array.Empty<byte>());
         
-            await conn.ExecuteAsync(
-                @"INSERT INTO attribute_sets (id, hash)
-                  VALUES (@Id, @Hash)",
-                new { Id = newId, Hash = emptyHash },
-                tx);
+            await _attributeRepo.InsertAttributeSet(conn, newId, emptyHash, tx);
         
             return newId;
         }
