@@ -1,5 +1,6 @@
 using Dapper;
 using OPEDbEngine.Infrastructure.Data;
+using OPEDbEngine.Infrastructure.Repositories;
 using OPEDbEngine.Infrastructure.Services.Hashing;
 
 namespace OPEDbEngine.Infrastructure.Services.ValueStore
@@ -15,11 +16,16 @@ namespace OPEDbEngine.Infrastructure.Services.ValueStore
     {
         private readonly DbConnectionFactory _db;
         private readonly IHashService _hash;
+        private readonly ValueRepository _valueRepo;
 
-        public ValueStoreService(DbConnectionFactory db, IHashService hash)
+        public ValueStoreService(
+            DbConnectionFactory db, 
+            IHashService hash,
+            ValueRepository valueRepo)
         {
             _db = db;
             _hash = hash;
+            _valueRepo = valueRepo;
         }
 
         public async Task<byte[]> StoreStringAsync(string value)
@@ -28,11 +34,7 @@ namespace OPEDbEngine.Infrastructure.Services.ValueStore
 
             using var conn = _db.Create();
 
-            await conn.ExecuteAsync(
-                @"INSERT INTO string_values (hash, value)
-                  VALUES (@Hash, @Value)
-                  ON CONFLICT (hash) DO NOTHING",
-                new { Hash = hash, Value = value });
+            await _valueRepo.InsertString(conn, hash, value);
 
             return hash;
         }
@@ -43,11 +45,7 @@ namespace OPEDbEngine.Infrastructure.Services.ValueStore
 
             using var conn = _db.Create();
 
-            await conn.ExecuteAsync(
-                @"INSERT INTO number_values (hash, value)
-                  VALUES (@Hash, @Value)
-                  ON CONFLICT (hash) DO NOTHING",
-                new { Hash = hash, Value = value });
+            await _valueRepo.InsertNumber(conn, hash, value);
 
             return hash;
         }
@@ -58,11 +56,7 @@ namespace OPEDbEngine.Infrastructure.Services.ValueStore
 
             using var conn = _db.Create();
 
-            await conn.ExecuteAsync(
-                @"INSERT INTO bool_values (hash, value)
-                  VALUES (@Hash, @Value)
-                  ON CONFLICT (hash) DO NOTHING",
-                new { Hash = hash, Value = value });
+            await _valueRepo.InsertBool(conn, hash, value);
 
             return hash;
         }

@@ -1,5 +1,6 @@
 using FluentAssertions;
 using OPEDbEngine.Infrastructure.Data;
+using OPEDbEngine.Infrastructure.Repositories;
 using OPEDbEngine.Infrastructure.Services.Hashing;
 using OPEDbEngine.Infrastructure.Services.ValueStore;
 using Xunit;
@@ -11,7 +12,7 @@ public class ValueStoreTests : IClassFixture<DbFixture>
         var db = new DbConnectionFactory(
             "Host=localhost;Port=5432;Database=opedb;Username=ope;Password=opepass");
 
-        return new ValueStoreService(db, new HashService());
+        return new ValueStoreService(db, new HashService(), new ValueRepository());
     }
 
     // ✅ 1. Same number → no duplicate insert

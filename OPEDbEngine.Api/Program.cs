@@ -24,14 +24,18 @@ builder.Services.AddScoped<INodeService, NodeService>();
 builder.Services.AddScoped<IAttributeCommandService, AttributeCommandService>();
 builder.Services.AddScoped<IClaimService, ClaimService>();
 builder.Services.AddScoped<IHashService, HashService>();
+builder.Services.AddScoped<IValueStoreService, ValueStoreService>();
 
-builder.Services.AddScoped<AttributeRepository>();
-builder.Services.AddScoped<NodeService>();
 builder.Services.AddScoped<AttributeCommandService>();
 builder.Services.AddScoped<QueryService>();
-builder.Services.AddScoped<ValueStoreService>();
+
+builder.Services.AddScoped<AttributeRepository>();
 builder.Services.AddScoped<NodeRepository>();
 builder.Services.AddScoped<VersionRepository>();
+builder.Services.AddScoped<ClaimRepository>();
+builder.Services.AddScoped<ValueRepository>();
+
+builder.Services.AddScoped<NodeService>();
 
 
 // Add services to the container.

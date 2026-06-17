@@ -1,6 +1,7 @@
 using Dapper;
 using OPEDbEngine.Core.Interfaces;
 using OPEDbEngine.Infrastructure.Data;
+using OPEDbEngine.Infrastructure.Repositories;
 using System.Data;
 
 namespace OPEDbEngine.Infrastructure.Services.Claiming
@@ -8,10 +9,12 @@ namespace OPEDbEngine.Infrastructure.Services.Claiming
     public class ClaimService : IClaimService
     {
         private readonly DbConnectionFactory _db;
+        private readonly ClaimRepository _claimRepo;
 
-        public ClaimService(DbConnectionFactory db)
+        public ClaimService(DbConnectionFactory db, ClaimRepository claimRepo)
         {
             _db = db;
+            _claimRepo = claimRepo;
         }
 
         // ✅ 1. Claim node (NO overwrite allowed)
@@ -20,21 +23,12 @@ namespace OPEDbEngine.Infrastructure.Services.Claiming
             using var conn = _db.Create();
             conn.Open();
 
-            var existing = await conn.ExecuteScalarAsync<Guid?>(
-                "SELECT claimed_by FROM node_claims WHERE node_id = @NodeId",
-                new { NodeId = nodeId });
+            var existing = await _claimRepo.GetOwner(conn, nodeId);
 
             if (existing != null)
                 throw new InvalidOperationException("Node is already claimed.");
 
-            await conn.ExecuteAsync(
-                @"INSERT INTO node_claims (node_id, claimed_by)
-                  VALUES (@NodeId, @Session)",
-                new
-                {
-                    NodeId = nodeId,
-                    Session = sessionId
-                });
+            await _claimRepo.InsertClaim(conn, nodeId, sessionId);
         }
 
         // ✅ 2. Validate claim
@@ -44,15 +38,11 @@ namespace OPEDbEngine.Infrastructure.Services.Claiming
             IDbConnection conn,
             IDbTransaction tx)
         {
-            var owner = await conn.QueryFirstOrDefaultAsync<Guid?>(
-                @"SELECT claimed_by 
-                  FROM node_claims 
-                  WHERE node_id = @NodeId",
-                new { NodeId = nodeId },
-                tx);
+            var owner = await _claimRepo.GetOwner(conn, nodeId, tx);
 
             if (!owner.HasValue || owner.Value != sessionId)
                 throw new InvalidOperationException("Node is not claimed by this session.");
+
         }
 
         // ✅ 3. Release node (ONLY owner)
@@ -61,9 +51,7 @@ namespace OPEDbEngine.Infrastructure.Services.Claiming
             using var conn = _db.Create();
             conn.Open();
 
-            var owner = await conn.ExecuteScalarAsync<Guid?>(
-                "SELECT claimed_by FROM node_claims WHERE node_id = @NodeId",
-                new { NodeId = nodeId });
+            var owner = await _claimRepo.GetOwner(conn, nodeId);
 
             if (!owner.HasValue)
                 throw new InvalidOperationException("Node is not claimed.");
@@ -71,9 +59,7 @@ namespace OPEDbEngine.Infrastructure.Services.Claiming
             if (owner.Value != sessionId)
                 throw new InvalidOperationException("Cannot release: not owner of claim.");
 
-            await conn.ExecuteAsync(
-                "DELETE FROM node_claims WHERE node_id = @NodeId",
-                new { NodeId = nodeId });
+            await _claimRepo.DeleteClaim(conn, nodeId);
         }
 
         // ✅ 4. Force release (admin use)
@@ -81,12 +67,8 @@ namespace OPEDbEngine.Infrastructure.Services.Claiming
         {
             using var conn = _db.Create();
             conn.Open();
-
-            // optional: log reason later
-
-            await conn.ExecuteAsync(
-                "DELETE FROM node_claims WHERE node_id = @NodeId",
-                new { NodeId = nodeId });
+            
+            await _claimRepo.DeleteClaim(conn, nodeId);
         }
     }
 }

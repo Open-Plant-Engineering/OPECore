@@ -76,13 +76,11 @@ public class AttributeCommandTests: IClassFixture<DbFixture>
     public async Task Should_Reject_Without_Claim()
     {
         var ctx = new TestContext();
-
-        var nodeService = new NodeService(ctx.Db, ctx.AttributeSet);
         
         var nodeId = Guid.NewGuid();
         var session = Guid.NewGuid();
 
-        var v1 = await nodeService.CreateNodeAsync(nodeId, "PIPE", "PIPING", session);
+        var v1 = await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "PIPING", session);
 
         var hash100 = await ctx.ValueStore.StoreNumberAsync(100d);
 

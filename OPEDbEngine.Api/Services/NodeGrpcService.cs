@@ -18,14 +18,14 @@ namespace OPEDbEngine.Api.Services
         private readonly IClaimService _claimService;
         private readonly AttributeCommandService _commandService;
         private readonly QueryService _queryService;
-        private readonly ValueStoreService _valueStore;
+        private readonly IValueStoreService _valueStore;
 
         public NodeGrpcService(
             InfraNodeService nodeService,
             IClaimService claimService,
             AttributeCommandService commandService,
             QueryService queryService,
-            ValueStoreService valueStore )
+            IValueStoreService valueStore )
         {
             _nodeService = nodeService;
             _claimService = claimService;

@@ -1,11 +1,20 @@
 using Dapper;
 using OPEDbEngine.Core.Interfaces;
+using OPEDbEngine.Infrastructure.Repositories;
 using System.Data;
+using OPEDbEngine.Infrastructure.Sql;
 
 namespace OPEDbEngine.Infrastructure.Services.Versioning
 {
     public class VersionService : IVersionService
     {
+        private readonly VersionRepository _versionRepo;
+
+        public VersionService(VersionRepository versionRepo)
+        {
+            _versionRepo = versionRepo;
+        }
+
         public async Task<Guid> CreateVersionAsync(
             Guid nodeId,
             Guid expectedVersionId,
@@ -14,16 +23,12 @@ namespace OPEDbEngine.Infrastructure.Services.Versioning
             IDbConnection conn,
             IDbTransaction tx)
         {
-            // ✅ DO NOT re-read version
-            // ✅ TRUST expectedVersionId
 
             var newVersionId = Guid.NewGuid();
 
             // ✅ Insert new version
             await conn.ExecuteAsync(
-                @"INSERT INTO versions
-                  (id, node_id, parent_version_id, attribute_set_id, created_by)
-                  VALUES (@Id, @NodeId, @Parent, @AttrSet, @Session)",
+                VersionSql.InsertVersion,
                 new
                 {
                     Id = newVersionId,
@@ -36,10 +41,7 @@ namespace OPEDbEngine.Infrastructure.Services.Versioning
 
             // ✅ Update node pointer
             var rows = await conn.ExecuteAsync(
-                @"UPDATE nodes
-                  SET current_version_id = @Version
-                  WHERE id = @NodeId
-                  AND current_version_id = @Expected",   // ✅ OCC check here
+                VersionSql.UpdateNodeVersion,   // ✅ OCC check here
                 new
                 {
                     Version = newVersionId,

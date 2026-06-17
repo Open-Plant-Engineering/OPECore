@@ -12,7 +12,7 @@ namespace OPEDbEngine.Infrastructure.Repositories
         public async Task<List<AttributeSetItemRow>> GetBySetId(
             IDbConnection conn,
             Guid setId,
-            IDbTransaction tx)
+            IDbTransaction? tx = null)
         {
             var result = await conn.QueryAsync<AttributeSetItemRow>(
                 AttributeSql.GetItemsBySetId,

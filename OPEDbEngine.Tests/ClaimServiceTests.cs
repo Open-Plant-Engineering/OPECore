@@ -3,7 +3,7 @@ using FluentAssertions;
 using OPEDbEngine.Infrastructure.Data;
 using OPEDbEngine.Infrastructure.Services.Claiming;
 using Xunit;
-
+using OPEDbEngine.Infrastructure.Repositories;
 public class ClaimServiceTests : IClassFixture<DbFixture>
 {
     private DbConnectionFactory CreateDb()
@@ -17,7 +17,8 @@ public class ClaimServiceTests : IClassFixture<DbFixture>
     public async Task Should_Claim_Node()
     {
         var db = CreateDb();
-        var service = new ClaimService(db);
+        var claimRepo = new ClaimRepository();
+        var service = new ClaimService(db, claimRepo);
 
         var nodeId = Guid.NewGuid();
         var sessionId = Guid.NewGuid();
@@ -43,7 +44,8 @@ public class ClaimServiceTests : IClassFixture<DbFixture>
     public async Task Should_Reject_When_Already_Claimed()
     {
         var db = CreateDb();
-        var service = new ClaimService(db);
+        var claimRepo = new ClaimRepository();
+        var service = new ClaimService(db, claimRepo);
 
         var nodeId = Guid.NewGuid();
         var session1 = Guid.NewGuid();
@@ -70,7 +72,8 @@ public class ClaimServiceTests : IClassFixture<DbFixture>
     public async Task Should_Validate_Correct_Claim()
     {
         var db = CreateDb();
-        var service = new ClaimService(db);
+        var claimRepo = new ClaimRepository();
+        var service = new ClaimService(db, claimRepo);
 
         var nodeId = Guid.NewGuid();
         var sessionId = Guid.NewGuid();
@@ -99,7 +102,8 @@ public class ClaimServiceTests : IClassFixture<DbFixture>
     public async Task Should_Reject_When_Claimed_By_Other_Session()
     {
         var db = CreateDb();
-        var service = new ClaimService(db);
+        var claimRepo = new ClaimRepository();
+        var service = new ClaimService(db, claimRepo);
 
         var nodeId = Guid.NewGuid();
         var ownerSession = Guid.NewGuid();
@@ -131,7 +135,8 @@ public class ClaimServiceTests : IClassFixture<DbFixture>
     public async Task Should_Reject_When_No_Claim_Exists()
     {
         var db = CreateDb();
-        var service = new ClaimService(db);
+        var claimRepo = new ClaimRepository();
+        var service = new ClaimService(db, claimRepo);
 
         var nodeId = Guid.NewGuid();
         var sessionId = Guid.NewGuid();
@@ -160,7 +165,8 @@ public class ClaimServiceTests : IClassFixture<DbFixture>
     public async Task Should_Release_Node()
     {
         var db = CreateDb();
-        var service = new ClaimService(db);
+        var claimRepo = new ClaimRepository();
+        var service = new ClaimService(db, claimRepo);
 
         var nodeId = Guid.NewGuid();
         var session = Guid.NewGuid();
@@ -187,7 +193,8 @@ public class ClaimServiceTests : IClassFixture<DbFixture>
     public async Task Should_Reject_Release_By_Other_User()
     {
         var db = CreateDb();
-        var service = new ClaimService(db);
+        var claimRepo = new ClaimRepository();
+        var service = new ClaimService(db, claimRepo);
 
         var nodeId = Guid.NewGuid();
         var owner = Guid.NewGuid();
@@ -215,7 +222,8 @@ public class ClaimServiceTests : IClassFixture<DbFixture>
     public async Task Should_Force_Release()
     {
         var db = CreateDb();
-        var service = new ClaimService(db);
+        var claimRepo = new ClaimRepository();
+        var service = new ClaimService(db, claimRepo);
 
         var nodeId = Guid.NewGuid();
         var owner = Guid.NewGuid();

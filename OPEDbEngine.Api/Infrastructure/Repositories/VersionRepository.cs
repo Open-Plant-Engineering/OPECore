@@ -1,5 +1,6 @@
 using Dapper;
 using System.Data;
+using OPEDbEngine.Infrastructure.Sql;
 
 namespace OPEDbEngine.Infrastructure.Repositories
 {
@@ -11,7 +12,7 @@ namespace OPEDbEngine.Infrastructure.Repositories
             IDbTransaction tx)
         {
             return await conn.ExecuteScalarAsync<Guid?>(
-                "SELECT current_version_id FROM nodes WHERE id = @Id",
+                VersionSql.GetCurrentVersion,
                 new { Id = nodeId },
                 tx);
         }
@@ -23,11 +24,38 @@ namespace OPEDbEngine.Infrastructure.Repositories
             IDbTransaction tx)
         {
             return await conn.ExecuteScalarAsync<Guid>(
-                @"SELECT attribute_set_id
-                  FROM versions
-                  WHERE id = @VersionId AND node_id = @NodeId",
+                VersionSql.GetAttributeSetId,
                 new { VersionId = versionId, NodeId = nodeId },
                 tx);
+        }
+
+        public async Task InsertFirstVersion(
+            IDbConnection conn,
+            Guid versionId,
+            Guid nodeId,
+            Guid attrSet,
+            Guid sessionId,
+            IDbTransaction tx)
+        {
+            await conn.ExecuteAsync(
+                VersionSql.InsertFirstVersion,
+                new
+                {
+                    Id = versionId,
+                    NodeId = nodeId,
+                    AttrSet = attrSet,
+                    Session = sessionId
+                },
+                tx);
+        }
+
+        public async Task<Guid> GetAttributeSetIdByVersion(
+            IDbConnection conn,
+            Guid versionId)
+        {
+            return await conn.ExecuteScalarAsync<Guid>(
+                QuerySql.GetAttributeSet,
+                new { Id = versionId });
         }
     }
 }

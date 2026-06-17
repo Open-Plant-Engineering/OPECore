@@ -1,7 +1,7 @@
-using Dapper;
 using OPEDbEngine.Core.DTOs;
 using OPEDbEngine.Core.Interfaces;
 using OPEDbEngine.Infrastructure.Data;
+using OPEDbEngine.Infrastructure.Repositories;
 using System.Data;
 
 namespace OPEDbEngine.Infrastructure.Services.Query
@@ -9,32 +9,38 @@ namespace OPEDbEngine.Infrastructure.Services.Query
     public class QueryService : IQueryService
     {
         private readonly DbConnectionFactory _db;
+        private readonly NodeRepository _nodeRepo;
+        private readonly VersionRepository _versionRepo;
+        private readonly AttributeRepository _attributeRepo;
+        private readonly ValueRepository _valueRepo;
 
-        public QueryService(DbConnectionFactory db)
+        public QueryService(
+            DbConnectionFactory db,
+            NodeRepository nodeRepo,
+            VersionRepository versionRepo,
+            AttributeRepository attributeRepo,
+            ValueRepository valueRepo)
         {
             _db = db;
+            _nodeRepo = nodeRepo;
+            _versionRepo = versionRepo;
+            _attributeRepo = attributeRepo;
+            _valueRepo = valueRepo;
         }
 
         public async Task<NodeDto> GetNodeAsync(Guid nodeId)
         {
             using var conn = _db.Create();
 
-            var node = await conn.QueryFirstOrDefaultAsync<NodeRow>(
-                @"SELECT id, type, owner, current_version_id
-                  FROM nodes WHERE id = @Id",
-                new { Id = nodeId });
+            var node = await _nodeRepo.GetNode(conn, nodeId);
 
             if (node == null)
                 throw new InvalidOperationException("Node not found");
 
-            // ✅ FINAL FIX: defensive consistency (MANDATORY in real systems)
+            // ✅ Defensive re-check (important for consistency)
             if (node.current_version_id == null)
             {
-                // re-read once more (no loop needed)
-                node = await conn.QueryFirstOrDefaultAsync<NodeRow>(
-                    @"SELECT id, type, owner, current_version_id
-                      FROM nodes WHERE id = @Id",
-                    new { Id = nodeId });
+                node = await _nodeRepo.GetNode(conn, nodeId);
 
                 if (node!.current_version_id == null)
                     throw new InvalidOperationException("Node has no version");
@@ -52,9 +58,7 @@ namespace OPEDbEngine.Infrastructure.Services.Query
         {
             using var conn = _db.Create();
 
-            var node = await conn.QueryFirstOrDefaultAsync<NodeMeta>(
-                @"SELECT type, owner FROM nodes WHERE id = @Id",
-                new { Id = nodeId });
+            var node = await _nodeRepo.GetNodeMeta(conn, nodeId);
 
             if (node == null)
                 throw new InvalidOperationException("Node not found");
@@ -69,17 +73,11 @@ namespace OPEDbEngine.Infrastructure.Services.Query
             string owner,
             Guid versionId)
         {
-            var setId = await conn.ExecuteScalarAsync<Guid>(
-                "SELECT attribute_set_id FROM versions WHERE id = @Id",
-                new { Id = versionId });
+            // ✅ get attribute set
+            var setId = await _versionRepo.GetAttributeSetIdByVersion(conn, versionId);
 
-            var attrs = (await conn.QueryAsync<AttributeRow>(
-                @"SELECT key as Key,
-                         value_hash as ValueHash,
-                         value_type as ValueType
-                  FROM attribute_set_items
-                  WHERE set_id = @SetId",
-                new { SetId = setId })).ToList();
+            // ✅ get attributes
+            var attrs = await _attributeRepo.GetBySetId(conn, setId);
 
             var result = new NodeDto
             {
@@ -89,6 +87,7 @@ namespace OPEDbEngine.Infrastructure.Services.Query
                 Owner = owner
             };
 
+            // ✅ resolve values
             foreach (var attr in attrs)
             {
                 var value = await ResolveValue(conn, attr.ValueHash, attr.ValueType);
@@ -111,43 +110,11 @@ namespace OPEDbEngine.Infrastructure.Services.Query
         {
             return type switch
             {
-                1 => await conn.ExecuteScalarAsync<string>(
-                        "SELECT value FROM string_values WHERE hash = @Hash",
-                        new { Hash = hash }),
-
-                2 => await conn.ExecuteScalarAsync<double>(
-                        "SELECT value FROM number_values WHERE hash = @Hash",
-                        new { Hash = hash }),
-
-                3 => await conn.ExecuteScalarAsync<bool>(
-                        "SELECT value FROM bool_values WHERE hash = @Hash",
-                        new { Hash = hash }),
-
+                1 => await _valueRepo.GetString(conn, hash),
+                2 => await _valueRepo.GetNumber(conn, hash),
+                3 => await _valueRepo.GetBool(conn, hash),
                 _ => throw new InvalidOperationException("Unsupported type")
             };
-        }
-
-        // ✅ Internal models (no need in Core)
-
-        private class NodeRow
-        {
-            public Guid Id { get; set; }
-            public string Type { get; set; } = default!;
-            public string Owner { get; set; } = default!;
-            public Guid? current_version_id { get; set; }
-        }
-
-        private class NodeMeta
-        {
-            public string Type { get; set; } = default!;
-            public string Owner { get; set; } = default!;
-        }
-
-        private class AttributeRow
-        {
-            public int Key { get; set; }
-            public byte[] ValueHash { get; set; } = default!;
-            public short ValueType { get; set; }
         }
     }
 }

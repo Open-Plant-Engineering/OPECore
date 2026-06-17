@@ -3,6 +3,7 @@ using FluentAssertions;
 using OPEDbEngine.Infrastructure.Data;
 using OPEDbEngine.Infrastructure.Services.Versioning;
 using Xunit;
+using OPEDbEngine.Infrastructure.Repositories;
 
 public class VersionServiceTests : IClassFixture<DbFixture>
 {
@@ -17,7 +18,8 @@ public class VersionServiceTests : IClassFixture<DbFixture>
     public async Task Should_Create_New_Version()
     {
         var db = CreateDb();
-        var service = new VersionService();
+        var VersionRepo = new VersionRepository();
+        var service = new VersionService(VersionRepo);
 
         using var conn = db.Create();
         conn.Open();
@@ -58,7 +60,8 @@ public class VersionServiceTests : IClassFixture<DbFixture>
     public async Task Should_Reject_On_Version_Mismatch()
     {
         var db = CreateDb();
-        var service = new VersionService();
+        var VersionRepo = new VersionRepository();
+        var service = new VersionService(VersionRepo);
 
         using var conn = db.Create();
         conn.Open();
@@ -101,7 +104,8 @@ public class VersionServiceTests : IClassFixture<DbFixture>
     public async Task Should_Reject_Second_Update_With_Same_Version()
     {
         var db = CreateDb();
-        var service = new VersionService();
+        var VersionRepo = new VersionRepository();
+        var service = new VersionService(VersionRepo);
 
         using var conn = db.Create();
         conn.Open();
@@ -144,7 +148,8 @@ public class VersionServiceTests : IClassFixture<DbFixture>
     public async Task Should_Reject_When_Node_Does_Not_Exist()
     {
         var db = CreateDb();
-        var service = new VersionService();
+        var VersionRepo = new VersionRepository();
+        var service = new VersionService(VersionRepo);
 
         using var conn = db.Create();
         conn.Open();
@@ -172,7 +177,8 @@ public class VersionServiceTests : IClassFixture<DbFixture>
     public async Task Should_Create_Proper_Version_Chain()
     {
         var db = CreateDb();
-        var service = new VersionService();
+        var VersionRepo = new VersionRepository();
+        var service = new VersionService(VersionRepo);
 
         using var conn = db.Create();
         conn.Open();
