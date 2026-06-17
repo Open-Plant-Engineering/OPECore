@@ -35,7 +35,7 @@ namespace OPEDbEngine.Infrastructure.Services.Query
             if (node == null)
                 throw new InvalidOperationException("Node not found");
 
-            if (node.current_version_id == null)
+            if (node.Current_version_id == null)
                 throw new InvalidOperationException("Node has no version");
 
             return await BuildNode(
@@ -43,7 +43,7 @@ namespace OPEDbEngine.Infrastructure.Services.Query
                 nodeId,
                 node.Type,
                 node.Owner,
-                node.current_version_id.Value,
+                node.Current_version_id.Value,
                 tx);
         }
 
