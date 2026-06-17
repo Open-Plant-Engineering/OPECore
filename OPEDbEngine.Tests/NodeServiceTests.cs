@@ -17,15 +17,12 @@ public class NodeServiceTests : IClassFixture<DbFixture>
     [Fact]
     public async Task Should_Create_Node_With_Initial_Version()
     {
-        var db = CreateDb();
-
-        var attrService = new AttributeSetService();
-        var nodeService = new NodeService(db, attrService);
+        var ctx = new TestContext();
 
         var nodeId = Guid.NewGuid();
         var session = Guid.NewGuid();
 
-        var version = await nodeService.CreateNodeAsync(
+        var version = await ctx.Node.CreateNodeAsync(
             nodeId,
             "PIPE",
             "PIPING",
@@ -38,21 +35,18 @@ public class NodeServiceTests : IClassFixture<DbFixture>
     [Fact]
     public async Task Should_Set_Current_Version_On_Node()
     {
-        var db = CreateDb();
-
-        var attrService = new AttributeSetService();
-        var nodeService = new NodeService(db, attrService);
+        var ctx = new TestContext();
 
         var nodeId = Guid.NewGuid();
         var session = Guid.NewGuid();
 
-        var versionId = await nodeService.CreateNodeAsync(
+        var versionId = await ctx.Node.CreateNodeAsync(
             nodeId,
             "PIPE",
             "PIPING",
             session);
 
-        using var conn = db.Create();
+        using var conn = ctx.Db.Create();
         conn.Open();
 
         var dbVersion = await conn.ExecuteScalarAsync<Guid?>(
@@ -67,18 +61,15 @@ public class NodeServiceTests : IClassFixture<DbFixture>
     [Fact]
     public async Task Should_Reject_Duplicate_Node()
     {
-        var db = CreateDb();
-
-        var attrService = new AttributeSetService();
-        var nodeService = new NodeService(db, attrService);
+        var ctx = new TestContext();
 
         var nodeId = Guid.NewGuid();
         var session = Guid.NewGuid();
 
-        await nodeService.CreateNodeAsync(nodeId, "PIPE", "PIPING", session);
+        await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "PIPING", session);
 
         var act = async () =>
-            await nodeService.CreateNodeAsync(nodeId, "PIPE", "PIPING", session);
+            await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "PIPING", session);
 
         await act.Should()
             .ThrowAsync<InvalidOperationException>()
@@ -89,17 +80,14 @@ public class NodeServiceTests : IClassFixture<DbFixture>
     [Fact]
     public async Task Node_Should_Always_Have_Version()
     {
-        var db = CreateDb();
-
-        var attrService = new AttributeSetService();
-        var nodeService = new NodeService(db, attrService);
+        var ctx = new TestContext();
 
         var nodeId = Guid.NewGuid();
         var session = Guid.NewGuid();
 
-        await nodeService.CreateNodeAsync(nodeId, "VALVE", "PIPING", session);
+        await ctx.Node.CreateNodeAsync(nodeId, "VALVE", "PIPING", session);
 
-        using var conn = db.Create();
+        using var conn = ctx.Db.Create();
         conn.Open();
 
         var version = await conn.ExecuteScalarAsync<Guid?>(

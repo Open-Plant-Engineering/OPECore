@@ -3,11 +3,19 @@ using OPEDbEngine.Core.Interfaces;
 using OPEDbEngine.Core.Models;
 using System.Data;
 using System.Security.Cryptography;
+using OPEDbEngine.Infrastructure.Repositories;
 
 namespace OPEDbEngine.Infrastructure.Services.AttributeSets
 {
     public class AttributeSetService : IAttributeSetService
     {
+        private readonly AttributeRepository _attributeRepo;
+
+        public AttributeSetService(AttributeRepository attributeRepo)
+        {
+            _attributeRepo = attributeRepo;
+        }
+
         public async Task<Guid> BuildAttributeSetAsync(
             Guid? existingSetId,
             IEnumerable<AttributeItem> changes,
@@ -19,14 +27,16 @@ namespace OPEDbEngine.Infrastructure.Services.AttributeSets
 
             if (existingSetId.HasValue)
             {
-                var rows = await conn.QueryAsync<AttributeItem>(
-                    @"SELECT key as Key, value_hash as ValueHash, value_type as ValueType
-                      FROM attribute_set_items
-                      WHERE set_id = @SetId",
-                    new { SetId = existingSetId },
-                    tx);
-
-                current = rows.ToDictionary(x => x.Key, x => x);
+                var rows = await _attributeRepo.GetBySetId(conn, existingSetId.Value, tx);
+                
+                current = rows.ToDictionary(
+                    r => r.Key,
+                    r => new AttributeItem
+                    {
+                        Key = r.Key,
+                        ValueHash = r.ValueHash,
+                        ValueType = r.ValueType
+                    });
             }
 
             // ✅ 2. Apply changes

@@ -3,6 +3,7 @@ using OPEDbEngine.Core.Models;
 using OPEDbEngine.Infrastructure.Data;
 using OPEDbEngine.Infrastructure.Services.AttributeSets;
 using Xunit;
+using OPEDbEngine.Infrastructure.Repositories;
 
 public class AttributeSetTests : IClassFixture<DbFixture>
 {
@@ -11,7 +12,8 @@ public class AttributeSetTests : IClassFixture<DbFixture>
         db = new DbConnectionFactory(
             "Host=localhost;Port=5432;Database=opedb;Username=ope;Password=opepass");
 
-        return new AttributeSetService();
+        var AttributeRepo = new AttributeRepository();
+        return new AttributeSetService(AttributeRepo);
     }
 
     // ✅ 1. Identical set reuse

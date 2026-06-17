@@ -1,6 +1,6 @@
 using Dapper;
 using OPEDbEngine.Infrastructure.Models;
-using OPEDbEngine.Infrastructure.Queries;
+using OPEDbEngine.Infrastructure.Sql;
 using OPEDbEngine.Core.Interfaces;
 using System.Data;
 
@@ -14,7 +14,7 @@ namespace OPEDbEngine.Infrastructure.Repositories
             IDbTransaction tx)
         {
             var result = await conn.QueryAsync<AttributeSetItemRow>(
-                AttributeQueries.GetItemsBySetId,
+                AttributeSql.GetItemsBySetId,
                 new { SetId = setId },
                 tx);
 

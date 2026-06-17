@@ -26,17 +26,19 @@ public class TestContext
         Db = new DbConnectionFactory(
             "Host=localhost;Port=5432;Database=opedb;Username=ope;Password=opepass");
 
-        Hash = new HashService();
-        ValueStore = new ValueStoreService(Db, Hash);
-        AttributeSet = new AttributeSetService();
-        Version = new VersionService();
-        Node = new NodeService(Db, AttributeSet);
-        Claim = new ClaimService(Db);
-
         // ✅ IMPORTANT: new dependency injected
         var AttributeRepo = new AttributeRepository();
         var NodeRepo = new NodeRepository();
         var VersionRepo = new VersionRepository();
+        Hash = new HashService();
+
+        ValueStore = new ValueStoreService(Db, Hash);
+        AttributeSet = new AttributeSetService(AttributeRepo);
+        Version = new VersionService();
+        Node = new NodeService(Db, AttributeSet);
+        Claim = new ClaimService(Db);
+
+
 
         Command = new AttributeCommandService(Db, AttributeSet, Version, Claim, AttributeRepo, NodeRepo, VersionRepo);
 

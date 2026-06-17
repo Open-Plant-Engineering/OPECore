@@ -127,18 +127,14 @@ public class QueryServiceTests : IClassFixture<DbFixture>
     [Fact]
     public async Task Should_Return_Empty_Attributes_For_New_Node()
     {
-        var db = Db();
-
-        var attrSet = new AttributeSetService();
-        var node = new NodeService(db, attrSet);
-        var query = new QueryService(db);
+        var ctx = new TestContext();
 
         var nodeId = Guid.NewGuid();
         var session = Guid.NewGuid();
 
-        await node.CreateNodeAsync(nodeId, "PIPE", "PIPING", session);
+        await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "PIPING", session);
 
-        var result = await query.GetNodeAsync(nodeId);
+        var result = await ctx.Query.GetNodeAsync(nodeId);
 
         result.Attributes.Should().BeEmpty();
     }
