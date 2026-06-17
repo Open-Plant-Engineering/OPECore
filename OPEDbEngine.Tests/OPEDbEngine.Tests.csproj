@@ -21,8 +21,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\OPEDbEngine.Core\OPEDbEngine.Core.csproj" />
-    <ProjectReference Include="..\OPEDbEngine.Infrastructure\OPEDbEngine.Infrastructure.csproj" />
     <ProjectReference Include="..\OPEDbEngine.Api\OPEDbEngine.Api.csproj" />
   </ItemGroup>
 

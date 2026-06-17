@@ -1,6 +1,4 @@
 <Solution>
   <Project Path="OPEDbEngine.Api/OPEDbEngine.Api.csproj" />
-  <Project Path="OPEDbEngine.Core/OPEDbEngine.Core.csproj" />
-  <Project Path="OPEDbEngine.Infrastructure/OPEDbEngine.Infrastructure.csproj" />
   <Project Path="OPEDbEngine.Tests/OPEDbEngine.Tests.csproj" />
 </Solution>
