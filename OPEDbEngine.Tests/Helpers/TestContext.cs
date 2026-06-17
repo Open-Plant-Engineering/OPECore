@@ -8,6 +8,7 @@ using OPEDbEngine.Infrastructure.Services.ValueStore;
 using OPEDbEngine.Infrastructure.Services.Versioning;
 using OPEDbEngine.Infrastructure.Services.Claiming;
 using OPEDbEngine.Infrastructure.Services.Hashing;
+using System.Data;
 
 public class TestContext
 {
@@ -62,7 +63,6 @@ public class TestContext
             VersionRepo);
 
         Query = new QueryService(
-            Db,
             NodeRepo,
             VersionRepo,
             AttributeRepo,

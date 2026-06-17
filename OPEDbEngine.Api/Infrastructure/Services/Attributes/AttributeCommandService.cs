@@ -44,7 +44,9 @@ namespace OPEDbEngine.Infrastructure.Services.Attributes
             int key,
             byte[] valueHash,
             short valueType,
-            Guid sessionId)
+            Guid sessionId,
+            IDbConnection conn,
+            IDbTransaction tx)
         {
             var item = new AttributeItem
             {
@@ -57,20 +59,19 @@ namespace OPEDbEngine.Infrastructure.Services.Attributes
                 nodeId,
                 expectedVersionId,
                 new[] { item },
-                sessionId);
+                sessionId,
+                conn,
+                tx);
         }
 
         public async Task<Guid> BulkSetAttributesAsync(
             Guid nodeId,
             Guid expectedVersionId,
             IEnumerable<AttributeItem> items,
-            Guid sessionId)
-        {
-            using var conn = _db.Create();
-            conn.Open();
-
-            using var tx = conn.BeginTransaction();
-            
+            Guid sessionId,
+            IDbConnection conn,
+            IDbTransaction tx)
+        {   
             await _claim.ValidateClaimAsync(nodeId, sessionId, conn, tx);
             
             // ✅ 1. Validate node exists
@@ -109,8 +110,6 @@ namespace OPEDbEngine.Infrastructure.Services.Attributes
                 conn,
                 tx);
 
-            tx.Commit();
-
             return newVersion;
         }
 
@@ -118,13 +117,10 @@ namespace OPEDbEngine.Infrastructure.Services.Attributes
             Guid nodeId,
             Guid expectedVersionId,
             int key,
-            Guid sessionId)
+            Guid sessionId,
+            IDbConnection conn,
+            IDbTransaction tx)
         {
-            using var conn = _db.Create();
-            conn.Open();
-
-            using var tx = conn.BeginTransaction();
-
             try
             {
                 // ✅ validate claim
@@ -177,8 +173,6 @@ namespace OPEDbEngine.Infrastructure.Services.Attributes
                     conn,
                     tx);
 
-                tx.Commit();
-
                 return newVersion;
             }
             catch (Exception ex)
@@ -194,11 +188,10 @@ namespace OPEDbEngine.Infrastructure.Services.Attributes
             Guid nodeId,
             Guid expectedVersionId,
             IEnumerable<int> keys,
-            Guid sessionId)
+            Guid sessionId,
+            IDbConnection conn,
+            IDbTransaction tx)
         {
-            using var conn = _db.Create();
-            conn.Open();
-            using var tx = conn.BeginTransaction();
 
             await _claim.ValidateClaimAsync(nodeId, sessionId, conn, tx);
 
@@ -235,8 +228,6 @@ namespace OPEDbEngine.Infrastructure.Services.Attributes
                 sessionId,
                 conn,
                 tx);
-
-            tx.Commit();
 
             return newVersion;
         }

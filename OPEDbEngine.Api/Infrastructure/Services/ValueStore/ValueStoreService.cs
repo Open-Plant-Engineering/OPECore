@@ -1,4 +1,4 @@
-using Dapper;
+using System.Data;
 using OPEDbEngine.Infrastructure.Data;
 using OPEDbEngine.Infrastructure.Repositories;
 using OPEDbEngine.Infrastructure.Services.Hashing;
@@ -11,7 +11,6 @@ namespace OPEDbEngine.Infrastructure.Services.ValueStore
         Task<byte[]> StoreNumberAsync(double value);
         Task<byte[]> StoreBoolAsync(bool value);
     }
-
     public class ValueStoreService : IValueStoreService
     {
         private readonly DbConnectionFactory _db;
@@ -19,7 +18,7 @@ namespace OPEDbEngine.Infrastructure.Services.ValueStore
         private readonly ValueRepository _valueRepo;
 
         public ValueStoreService(
-            DbConnectionFactory db, 
+            DbConnectionFactory db,
             IHashService hash,
             ValueRepository valueRepo)
         {
@@ -28,37 +27,57 @@ namespace OPEDbEngine.Infrastructure.Services.ValueStore
             _valueRepo = valueRepo;
         }
 
-        public async Task<byte[]> StoreStringAsync(string value)
+        // ✅ TRANSACTIONAL VERSION (NEW PRIMARY)
+        public async Task<byte[]> StoreStringAsync(
+            string value,
+            IDbConnection conn,
+            IDbTransaction? tx = null)
         {
             var hash = _hash.HashString(value);
-
-            using var conn = _db.Create();
-
             await _valueRepo.InsertString(conn, hash, value);
+            return hash;
+        }
 
+        // ✅ SIMPLE VERSION (WRAPPER)
+        public async Task<byte[]> StoreStringAsync(string value)
+        {
+            using var conn = _db.Create();
+            conn.Open();
+            return await StoreStringAsync(value, conn, null);
+        }
+
+        public async Task<byte[]> StoreNumberAsync(
+            double value,
+            IDbConnection conn,
+            IDbTransaction? tx = null)
+        {
+            var hash = _hash.HashNumber(value);
+            await _valueRepo.InsertNumber(conn, hash, value);
             return hash;
         }
 
         public async Task<byte[]> StoreNumberAsync(double value)
         {
-            var hash = _hash.HashNumber(value);
-
             using var conn = _db.Create();
+            conn.Open();
+            return await StoreNumberAsync(value, conn, null);
+        }
 
-            await _valueRepo.InsertNumber(conn, hash, value);
-
+        public async Task<byte[]> StoreBoolAsync(
+            bool value,
+            IDbConnection conn,
+            IDbTransaction? tx = null)
+        {
+            var hash = _hash.HashBool(value);
+            await _valueRepo.InsertBool(conn, hash, value);
             return hash;
         }
 
         public async Task<byte[]> StoreBoolAsync(bool value)
         {
-            var hash = _hash.HashBool(value);
-
             using var conn = _db.Create();
-
-            await _valueRepo.InsertBool(conn, hash, value);
-
-            return hash;
+            conn.Open();
+            return await StoreBoolAsync(value, conn, null);
         }
     }
 }

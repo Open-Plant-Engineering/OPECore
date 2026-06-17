@@ -5,11 +5,29 @@ namespace OPEDbEngine.Core.Interfaces
 {
     public interface IClaimService
     {
-        Task ClaimNodeAsync(Guid nodeId, Guid sessionId);
-        Task ValidateClaimAsync(Guid nodeId, Guid sessionId, IDbConnection conn, IDbTransaction tx);
-        
-        Task ReleaseNodeAsync(Guid nodeId, Guid sessionId);
+        Task ClaimNodeAsync(
+            Guid nodeId,
+            Guid sessionId,
+            IDbConnection conn,
+            IDbTransaction tx);
 
-        Task ForceReleaseAsync(Guid nodeId, Guid sessionId, string reason);
-    }
+        Task ValidateClaimAsync(
+            Guid nodeId,
+            Guid sessionId,
+            IDbConnection conn,
+            IDbTransaction tx);
+
+        Task ReleaseNodeAsync(
+            Guid nodeId,
+            Guid sessionId,
+            IDbConnection conn,
+            IDbTransaction tx);
+
+        Task ForceReleaseAsync(
+            Guid nodeId,
+            Guid sessionId,
+            string reason,
+            IDbConnection conn,
+            IDbTransaction tx);
+        }
 }

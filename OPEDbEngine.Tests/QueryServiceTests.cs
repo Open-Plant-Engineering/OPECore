@@ -1,34 +1,25 @@
 using FluentAssertions;
-using OPEDbEngine.Infrastructure.Data;
-using OPEDbEngine.Infrastructure.Services.AttributeSets;
-using OPEDbEngine.Infrastructure.Services.Attributes;
-using OPEDbEngine.Infrastructure.Services.Hashing;
-using OPEDbEngine.Infrastructure.Services.Nodes;
-using OPEDbEngine.Infrastructure.Services.Query;
-using OPEDbEngine.Infrastructure.Services.ValueStore;
-using OPEDbEngine.Infrastructure.Services.Versioning;
-using OPEDbEngine.Infrastructure.Services.Claiming;
 using Xunit;
 
 public class QueryServiceTests : IClassFixture<DbFixture>
 {
-    private DbConnectionFactory Db() =>
-        new DbConnectionFactory("Host=localhost;Port=5432;Database=opedb;Username=ope;Password=opepass");
-
-    // ✅ 1. Read latest value
     [Fact]
     public async Task Should_Read_Updated_Value()
     {
         var ctx = new TestContext();
 
+        using var conn = ctx.Db.Create();
+        conn.Open();
+        using var tx = conn.BeginTransaction();
+
         var nodeId = Guid.NewGuid();
         var session = Guid.NewGuid();
 
-        var v1 = await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "P", session);
+        var v1 = await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "P", session, conn, tx);
+
+        await ctx.Claim.ClaimNodeAsync(nodeId, session, conn, tx);
 
         var hash100 = await ctx.ValueStore.StoreNumberAsync(100d);
-
-        await ctx.Claim.ClaimNodeAsync(nodeId, session);
 
         var v2 = await ctx.Command.SetAttributeAsync(
             nodeId,
@@ -36,9 +27,16 @@ public class QueryServiceTests : IClassFixture<DbFixture>
             1,
             hash100,
             2,
-            session);
+            session,
+            conn,
+            tx);
 
-        var result = await ctx.Query.GetNodeAsync(nodeId);
+        tx.Commit();
+
+        using var readConn = ctx.Db.Create();
+        readConn.Open();
+
+        var result = await ctx.Query.GetNodeAsync(nodeId, readConn);
 
         result.NodeId.Should().Be(nodeId);
         result.VersionId.Should().Be(v2);
@@ -48,26 +46,34 @@ public class QueryServiceTests : IClassFixture<DbFixture>
             (double)a.Value! == 100d);
     }
 
-    // ✅ 2. Read old version
     [Fact]
     public async Task Should_Read_Old_Version_Data()
     {
         var ctx = new TestContext();
 
+        using var conn = ctx.Db.Create();
+        conn.Open();
+        using var tx = conn.BeginTransaction();
+
         var nodeId = Guid.NewGuid();
         var session = Guid.NewGuid();
 
-        var v1 = await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "PIPING", session);
+        var v1 = await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "PIPING", session, conn, tx);
 
-        await ctx.Claim.ClaimNodeAsync(nodeId, session);
+        await ctx.Claim.ClaimNodeAsync(nodeId, session, conn, tx);
 
         var hash100 = await ctx.ValueStore.StoreNumberAsync(100d);
         var hash200 = await ctx.ValueStore.StoreNumberAsync(200d);
 
-        var v2 = await ctx.Command.SetAttributeAsync(nodeId, v1, 1, hash100, 2, session);
-        var v3 = await ctx.Command.SetAttributeAsync(nodeId, v2, 1, hash200, 2, session);
+        var v2 = await ctx.Command.SetAttributeAsync(nodeId, v1, 1, hash100, 2, session, conn, tx);
+        var v3 = await ctx.Command.SetAttributeAsync(nodeId, v2, 1, hash200, 2, session, conn, tx);
 
-        var old = await ctx.Query.GetNodeVersionAsync(nodeId, v2);
+        tx.Commit();
+
+        using var readConn = ctx.Db.Create();
+        readConn.Open();
+
+        var old = await ctx.Query.GetNodeVersionAsync(nodeId, v2, readConn);
 
         old.VersionId.Should().Be(v2);
 
@@ -76,18 +82,21 @@ public class QueryServiceTests : IClassFixture<DbFixture>
             (double)a.Value! == 100d);
     }
 
-    // ✅ 3. Multiple attributes read correctly
     [Fact]
     public async Task Should_Read_Multiple_Attributes()
     {
         var ctx = new TestContext();
 
+        using var conn = ctx.Db.Create();
+        conn.Open();
+        using var tx = conn.BeginTransaction();
+
         var nodeId = Guid.NewGuid();
         var session = Guid.NewGuid();
 
-        var v1 = await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "PIPING", session);
+        var v1 = await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "PIPING", session, conn, tx);
 
-        await ctx.Claim.ClaimNodeAsync(nodeId, session);
+        await ctx.Claim.ClaimNodeAsync(nodeId, session, conn, tx);
 
         var numHash = await ctx.ValueStore.StoreNumberAsync(100d);
         var strHash = await ctx.ValueStore.StoreStringAsync("CS");
@@ -110,9 +119,16 @@ public class QueryServiceTests : IClassFixture<DbFixture>
                     ValueType = 1
                 }
             },
-            session);
+            session,
+            conn,
+            tx);
 
-        var result = await ctx.Query.GetNodeAsync(nodeId);
+        tx.Commit();
+
+        using var readConn = ctx.Db.Create();
+        readConn.Open();
+
+        var result = await ctx.Query.GetNodeAsync(nodeId, readConn);
 
         result.Attributes.Should().HaveCount(2);
 
@@ -123,18 +139,26 @@ public class QueryServiceTests : IClassFixture<DbFixture>
             a.Key == 2 && (string)a.Value! == "CS");
     }
 
-    // ✅ 4. Node without attributes
     [Fact]
     public async Task Should_Return_Empty_Attributes_For_New_Node()
     {
         var ctx = new TestContext();
 
+        using var conn = ctx.Db.Create();
+        conn.Open();
+        using var tx = conn.BeginTransaction();
+
         var nodeId = Guid.NewGuid();
         var session = Guid.NewGuid();
 
-        await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "PIPING", session);
+        await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "PIPING", session, conn, tx);
 
-        var result = await ctx.Query.GetNodeAsync(nodeId);
+        tx.Commit();
+
+        using var readConn = ctx.Db.Create();
+        readConn.Open();
+
+        var result = await ctx.Query.GetNodeAsync(nodeId, readConn);
 
         result.Attributes.Should().BeEmpty();
     }

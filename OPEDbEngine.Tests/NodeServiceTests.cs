@@ -1,23 +1,18 @@
 using Dapper;
 using FluentAssertions;
-using OPEDbEngine.Infrastructure.Data;
-using OPEDbEngine.Infrastructure.Services.AttributeSets;
-using OPEDbEngine.Infrastructure.Services.Nodes;
 using Xunit;
 
 public class NodeServiceTests : IClassFixture<DbFixture>
 {
-    private DbConnectionFactory CreateDb()
-    {
-        return new DbConnectionFactory(
-            "Host=localhost;Port=5432;Database=opedb;Username=ope;Password=opepass");
-    }
-
     // ✅ 1. Basic creation
     [Fact]
     public async Task Should_Create_Node_With_Initial_Version()
     {
         var ctx = new TestContext();
+
+        using var conn = ctx.Db.Create();
+        conn.Open();
+        using var tx = conn.BeginTransaction();
 
         var nodeId = Guid.NewGuid();
         var session = Guid.NewGuid();
@@ -26,7 +21,11 @@ public class NodeServiceTests : IClassFixture<DbFixture>
             nodeId,
             "PIPE",
             "PIPING",
-            session);
+            session,
+            conn,
+            tx);
+
+        tx.Commit();
 
         version.Should().NotBe(Guid.Empty);
     }
@@ -37,6 +36,10 @@ public class NodeServiceTests : IClassFixture<DbFixture>
     {
         var ctx = new TestContext();
 
+        using var conn = ctx.Db.Create();
+        conn.Open();
+        using var tx = conn.BeginTransaction();
+
         var nodeId = Guid.NewGuid();
         var session = Guid.NewGuid();
 
@@ -44,10 +47,11 @@ public class NodeServiceTests : IClassFixture<DbFixture>
             nodeId,
             "PIPE",
             "PIPING",
-            session);
+            session,
+            conn,
+            tx);
 
-        using var conn = ctx.Db.Create();
-        conn.Open();
+        tx.Commit(); // ✅ commit before query
 
         var dbVersion = await conn.ExecuteScalarAsync<Guid?>(
             "SELECT current_version_id FROM nodes WHERE id = @Id",
@@ -63,17 +67,23 @@ public class NodeServiceTests : IClassFixture<DbFixture>
     {
         var ctx = new TestContext();
 
+        using var conn = ctx.Db.Create();
+        conn.Open();
+        using var tx = conn.BeginTransaction();
+
         var nodeId = Guid.NewGuid();
         var session = Guid.NewGuid();
 
-        await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "PIPING", session);
+        await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "PIPING", session, conn, tx);
 
         var act = async () =>
-            await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "PIPING", session);
+            await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "PIPING", session, conn, tx);
 
         await act.Should()
             .ThrowAsync<InvalidOperationException>()
             .WithMessage("*already exists*");
+
+        tx.Rollback();
     }
 
     // ✅ 4. Node must always have version
@@ -82,13 +92,16 @@ public class NodeServiceTests : IClassFixture<DbFixture>
     {
         var ctx = new TestContext();
 
+        using var conn = ctx.Db.Create();
+        conn.Open();
+        using var tx = conn.BeginTransaction();
+
         var nodeId = Guid.NewGuid();
         var session = Guid.NewGuid();
 
-        await ctx.Node.CreateNodeAsync(nodeId, "VALVE", "PIPING", session);
+        await ctx.Node.CreateNodeAsync(nodeId, "VALVE", "PIPING", session, conn, tx);
 
-        using var conn = ctx.Db.Create();
-        conn.Open();
+        tx.Commit();
 
         var version = await conn.ExecuteScalarAsync<Guid?>(
             "SELECT current_version_id FROM nodes WHERE id = @Id",

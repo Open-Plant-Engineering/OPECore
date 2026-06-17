@@ -1,12 +1,12 @@
 using Grpc.Core;
 using OPEDbEngine.Api;
+using OPEDbEngine.Infrastructure.Data;
 using OPEDbEngine.Infrastructure.Services.Nodes;
 using OPEDbEngine.Infrastructure.Services.Attributes;
 using OPEDbEngine.Infrastructure.Services.Query;
 using OPEDbEngine.Infrastructure.Services.Claiming;
 using InfraNodeService = OPEDbEngine.Infrastructure.Services.Nodes.NodeService;
 using OPEDbEngine.Infrastructure.Services.ValueStore;
-using OPEDbEngine.Infrastructure.Services.Hashing;
 using OPEDbEngine.Core.Interfaces;
 using OPEDbEngine.Core.Models;
 
@@ -19,19 +19,22 @@ namespace OPEDbEngine.Api.Services
         private readonly AttributeCommandService _commandService;
         private readonly QueryService _queryService;
         private readonly IValueStoreService _valueStore;
+        private readonly DbConnectionFactory _db;
 
         public NodeGrpcService(
             InfraNodeService nodeService,
             IClaimService claimService,
             AttributeCommandService commandService,
             QueryService queryService,
-            IValueStoreService valueStore )
+            IValueStoreService valueStore,
+            DbConnectionFactory db)
         {
             _nodeService = nodeService;
             _claimService = claimService;
             _commandService = commandService;
             _queryService = queryService;
             _valueStore = valueStore;
+            _db = db;
         }
 
         // ✅ CREATE NODE
@@ -39,6 +42,11 @@ namespace OPEDbEngine.Api.Services
             CreateNodeRequest request,
             ServerCallContext context)
         {
+            using var conn = _db.Create();
+            conn.Open();
+
+            using var tx = conn.BeginTransaction();
+
             if (!Guid.TryParse(request.NodeId, out var nodeId))
                 throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid nodeId"));
 
@@ -49,7 +57,11 @@ namespace OPEDbEngine.Api.Services
                 nodeId,
                 request.Type,
                 request.Owner,
-                sessionId);
+                sessionId,
+                conn,
+                tx);
+
+            tx.Commit();
 
             return new CreateNodeResponse
             {
@@ -62,13 +74,20 @@ namespace OPEDbEngine.Api.Services
             ClaimNodeRequest request,
             ServerCallContext context)
         {
+            using var conn = _db.Create();
+            conn.Open();
+
+            using var tx = conn.BeginTransaction();
+
             if (!Guid.TryParse(request.NodeId, out var nodeId))
                 throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid nodeId"));
 
             if (!Guid.TryParse(request.SessionId, out var sessionId))
                 throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid sessionId"));
 
-            await _claimService.ClaimNodeAsync(nodeId, sessionId);
+            await _claimService.ClaimNodeAsync(nodeId, sessionId, conn, tx);
+
+            tx.Commit();
 
             return new ClaimNodeResponse
             {
@@ -81,6 +100,11 @@ namespace OPEDbEngine.Api.Services
             SetAttributeRequest request,
             ServerCallContext context)
         {
+            using var conn = _db.Create();
+            conn.Open();
+
+            using var tx = conn.BeginTransaction();
+
             if (!Guid.TryParse(request.NodeId, out var nodeId))
                 throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid nodeId"));
 
@@ -90,16 +114,17 @@ namespace OPEDbEngine.Api.Services
             if (!Guid.TryParse(request.SessionId, out var sessionId))
                 throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid sessionId"));
 
-            if (request.ValueHash == null || request.ValueHash.Length == 0)
-                throw new RpcException(new Status(StatusCode.InvalidArgument, "valueHash is required"));
-
             var newVersion = await _commandService.SetAttributeAsync(
                 nodeId,
                 versionId,
                 request.Key,
                 request.ValueHash.ToByteArray(),
                 (short)request.ValueType,
-                sessionId);
+                sessionId,
+                conn,
+                tx);
+
+            tx.Commit();
 
             return new SetAttributeResponse
             {
@@ -107,15 +132,18 @@ namespace OPEDbEngine.Api.Services
             };
         }
 
-        // ✅ GET NODE
+        // ✅ GET NODE (READ → no TX needed)
         public override async Task<NodeResponse> GetNode(
             GetNodeRequest request,
             ServerCallContext context)
         {
+            using var conn = _db.Create();
+            conn.Open();
+
             if (!Guid.TryParse(request.NodeId, out var nodeId))
                 throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid nodeId"));
 
-            var node = await _queryService.GetNodeAsync(nodeId);
+            var node = await _queryService.GetNodeAsync(nodeId, conn);
 
             var response = new NodeResponse
             {
@@ -138,13 +166,11 @@ namespace OPEDbEngine.Api.Services
             return response;
         }
 
+        // ✅ STORE VALUE (SIMPLE FLOW OK)
         public override async Task<StoreValueResponse> StoreValue(
             StoreValueRequest request,
             ServerCallContext context)
         {
-            if (request.ValueCase == StoreValueRequest.ValueOneofCase.None)
-                throw new RpcException(new Status(StatusCode.InvalidArgument, "Value is required"));
-
             byte[] hash;
             int valueType;
 
@@ -175,47 +201,47 @@ namespace OPEDbEngine.Api.Services
                 ValueType = valueType
             };
         }
-        
+
+        // ✅ REMOVE ATTRIBUTE
         public override async Task<RemoveAttributeResponse> RemoveAttribute(
             RemoveAttributeRequest request,
             ServerCallContext context)
         {
-            if (!Guid.TryParse(request.NodeId, out var nodeId))
-                throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid nodeId"));
+            using var conn = _db.Create();
+            conn.Open();
 
-            if (!Guid.TryParse(request.VersionId, out var versionId))
-                throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid versionId"));
+            using var tx = conn.BeginTransaction();
 
-            if (!Guid.TryParse(request.SessionId, out var sessionId))
-                throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid sessionId"));
+            var nodeId = Guid.Parse(request.NodeId);
+            var versionId = Guid.Parse(request.VersionId);
+            var sessionId = Guid.Parse(request.SessionId);
 
-            try
+            var newVersion = await _commandService.RemoveAttributeAsync(
+                nodeId,
+                versionId,
+                request.Key,
+                sessionId,
+                conn,
+                tx);
+
+            tx.Commit();
+
+            return new RemoveAttributeResponse
             {
-                var newVersion = await _commandService.RemoveAttributeAsync(
-                    nodeId,
-                    versionId,
-                    request.Key,
-                    sessionId);
-
-                return new RemoveAttributeResponse
-                {
-                    NewVersionId = newVersion.ToString()
-                };
-            }
-            catch (InvalidOperationException ex)
-            {
-                throw new RpcException(new Status(StatusCode.FailedPrecondition, ex.Message));
-            }
-            catch (Exception ex)
-            {
-                throw new RpcException(new Status(StatusCode.Internal, ex.Message));
-            }
+                NewVersionId = newVersion.ToString()
+            };
         }
 
+        // ✅ BULK SET
         public override async Task<BulkSetAttributesResponse> BulkSetAttributes(
             BulkSetAttributesRequest request,
             ServerCallContext context)
         {
+            using var conn = _db.Create();
+            conn.Open();
+
+            using var tx = conn.BeginTransaction();
+
             var nodeId = Guid.Parse(request.NodeId);
             var versionId = Guid.Parse(request.VersionId);
             var sessionId = Guid.Parse(request.SessionId);
@@ -231,34 +257,16 @@ namespace OPEDbEngine.Api.Services
                 nodeId,
                 versionId,
                 items,
-                sessionId);
+                sessionId,
+                conn,
+                tx);
+
+            tx.Commit();
 
             return new BulkSetAttributesResponse
             {
                 NewVersionId = newVersion.ToString()
             };
         }
-
-        public override async Task<BulkRemoveAttributesResponse> BulkRemoveAttributes(
-            BulkRemoveAttributesRequest request,
-            ServerCallContext context)
-        {
-            var nodeId = Guid.Parse(request.NodeId);
-            var versionId = Guid.Parse(request.VersionId);
-            var sessionId = Guid.Parse(request.SessionId);
-
-            // ✅ call single remove logic but multiple keys
-            var newVersion = await _commandService.RemoveAttributesAsync(
-                nodeId,
-                versionId,
-                request.Keys,
-                sessionId);
-
-            return new BulkRemoveAttributesResponse
-            {
-                NewVersionId = newVersion.ToString()
-            };
-        }
-
     }
 }

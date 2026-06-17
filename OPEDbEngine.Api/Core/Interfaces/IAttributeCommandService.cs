@@ -1,4 +1,5 @@
 using OPEDbEngine.Core.Models;
+using System.Data;
 
 namespace OPEDbEngine.Core.Interfaces
 {
@@ -10,12 +11,16 @@ namespace OPEDbEngine.Core.Interfaces
             int key,
             byte[] valueHash,
             short valueType,
-            Guid sessionId);
+            Guid sessionId,
+            IDbConnection conn,
+            IDbTransaction tx);
 
         Task<Guid> BulkSetAttributesAsync(
             Guid nodeId,
             Guid expectedVersionId,
             IEnumerable<AttributeItem> items,
-            Guid sessionId);
+            Guid sessionId,
+            IDbConnection conn,
+            IDbTransaction tx);
     }
 }

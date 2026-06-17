@@ -8,6 +8,8 @@ namespace OPEDbEngine.Core.Interfaces
             Guid nodeId,
             string type,
             string owner,
-            Guid sessionId);
+            Guid sessionId,
+            IDbConnection conn,
+            IDbTransaction tx);
     }
 }

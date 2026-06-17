@@ -1,40 +1,27 @@
 using FluentAssertions;
 using OPEDbEngine.Core.Models;
-using OPEDbEngine.Infrastructure.Data;
-using OPEDbEngine.Infrastructure.Services.AttributeSets;
-using OPEDbEngine.Infrastructure.Services.Attributes;
-using OPEDbEngine.Infrastructure.Services.Nodes;
-using OPEDbEngine.Infrastructure.Services.ValueStore;
-using OPEDbEngine.Infrastructure.Services.Versioning;
-using OPEDbEngine.Infrastructure.Services.Hashing;
-using OPEDbEngine.Infrastructure.Services.Claiming;
 using Xunit;
 
-public class AttributeCommandTests: IClassFixture<DbFixture>
+public class AttributeCommandTests : IClassFixture<DbFixture>
 {
-    private DbConnectionFactory CreateDb()
-    {
-        return new DbConnectionFactory(
-            "Host=localhost;Port=5432;Database=opedb;Username=ope;Password=opepass");
-    }
-
     [Fact]
     public async Task Should_Update_Attribute_And_Create_New_Version()
     {
         var ctx = new TestContext();
 
+        using var conn = ctx.Db.Create();
+        conn.Open();
+        using var tx = conn.BeginTransaction();
+
         var nodeId = Guid.NewGuid();
         var session = Guid.NewGuid();
 
         var v1 = await ctx.Node.CreateNodeAsync(
-            nodeId,
-            "PIPE",
-            "PIPING",
-            session);
+            nodeId, "PIPE", "PIPING", session, conn, tx);
+
+        await ctx.Claim.ClaimNodeAsync(nodeId, session, conn, tx);
 
         var hash100 = await ctx.ValueStore.StoreNumberAsync(100d);
-
-        await ctx.Claim.ClaimNodeAsync(nodeId, session);
 
         var v2 = await ctx.Command.SetAttributeAsync(
             nodeId,
@@ -42,7 +29,11 @@ public class AttributeCommandTests: IClassFixture<DbFixture>
             1,
             hash100,
             2,
-            session);
+            session,
+            conn,
+            tx);
+
+        tx.Commit();
 
         v2.Should().NotBe(v1);
     }
@@ -52,12 +43,16 @@ public class AttributeCommandTests: IClassFixture<DbFixture>
     {
         var ctx = new TestContext();
 
+        using var conn = ctx.Db.Create();
+        conn.Open();
+        using var tx = conn.BeginTransaction();
+
         var nodeId = Guid.NewGuid();
         var session = Guid.NewGuid();
 
-        var v1 = await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "PIPING", session);
+        var v1 = await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "PIPING", session, conn, tx);
 
-        await ctx.Claim.ClaimNodeAsync(nodeId, session);
+        await ctx.Claim.ClaimNodeAsync(nodeId, session, conn, tx);
 
         var hash100 = await ctx.ValueStore.StoreNumberAsync(100d);
 
@@ -67,7 +62,11 @@ public class AttributeCommandTests: IClassFixture<DbFixture>
             1,
             hash100,
             2,
-            session);
+            session,
+            conn,
+            tx);
+
+        tx.Commit();
 
         v2.Should().NotBe(v1);
     }
@@ -76,25 +75,34 @@ public class AttributeCommandTests: IClassFixture<DbFixture>
     public async Task Should_Reject_Without_Claim()
     {
         var ctx = new TestContext();
-        
+
+        using var conn = ctx.Db.Create();
+        conn.Open();
+        using var tx = conn.BeginTransaction();
+
         var nodeId = Guid.NewGuid();
         var session = Guid.NewGuid();
 
-        var v1 = await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "PIPING", session);
+        var v1 = await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "PIPING", session, conn, tx);
 
         var hash100 = await ctx.ValueStore.StoreNumberAsync(100d);
 
-        var act = async () => await ctx.Command.SetAttributeAsync(
-            nodeId,
-            v1,
-            1,
-            hash100,
-            2,
-            session);
+        var act = async () =>
+            await ctx.Command.SetAttributeAsync(
+                nodeId,
+                v1,
+                1,
+                hash100,
+                2,
+                session,
+                conn,
+                tx);
 
         await act.Should()
             .ThrowAsync<InvalidOperationException>()
             .WithMessage("*not claimed*");
+
+        tx.Rollback();
     }
 
     [Fact]
@@ -102,27 +110,36 @@ public class AttributeCommandTests: IClassFixture<DbFixture>
     {
         var ctx = new TestContext();
 
+        using var conn = ctx.Db.Create();
+        conn.Open();
+        using var tx = conn.BeginTransaction();
+
         var nodeId = Guid.NewGuid();
         var ownerSession = Guid.NewGuid();
         var otherSession = Guid.NewGuid();
 
-        var v1 = await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "PIPING", ownerSession);
+        var v1 = await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "PIPING", ownerSession, conn, tx);
 
-        await ctx.Claim.ClaimNodeAsync(nodeId, ownerSession);
+        await ctx.Claim.ClaimNodeAsync(nodeId, ownerSession, conn, tx);
 
         var hash100 = await ctx.ValueStore.StoreNumberAsync(100d);
 
-        var act = async () => await ctx.Command.SetAttributeAsync(
-            nodeId,
-            v1,
-            1,
-            hash100,
-            2,
-            otherSession);
+        var act = async () =>
+            await ctx.Command.SetAttributeAsync(
+                nodeId,
+                v1,
+                1,
+                hash100,
+                2,
+                otherSession,
+                conn,
+                tx);
 
         await act.Should()
             .ThrowAsync<InvalidOperationException>()
             .WithMessage("*not claimed*");
+
+        tx.Rollback();
     }
 
     [Fact]
@@ -130,12 +147,16 @@ public class AttributeCommandTests: IClassFixture<DbFixture>
     {
         var ctx = new TestContext();
 
+        using var conn = ctx.Db.Create();
+        conn.Open();
+        using var tx = conn.BeginTransaction();
+
         var nodeId = Guid.NewGuid();
         var session = Guid.NewGuid();
 
-        var v1 = await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "PIPING", session);
+        var v1 = await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "PIPING", session, conn, tx);
 
-        await ctx.Claim.ClaimNodeAsync(nodeId, session);
+        await ctx.Claim.ClaimNodeAsync(nodeId, session, conn, tx);
 
         var numHash = await ctx.ValueStore.StoreNumberAsync(100d);
         var strHash = await ctx.ValueStore.StoreStringAsync("CS");
@@ -158,7 +179,11 @@ public class AttributeCommandTests: IClassFixture<DbFixture>
                     ValueType = 1
                 }
             },
-            session);
+            session,
+            conn,
+            tx);
+
+        tx.Commit();
 
         v2.Should().NotBe(v1);
     }
@@ -168,27 +193,35 @@ public class AttributeCommandTests: IClassFixture<DbFixture>
     {
         var ctx = new TestContext();
 
+        using var conn = ctx.Db.Create();
+        conn.Open();
+        using var tx = conn.BeginTransaction();
+
         var nodeId = Guid.NewGuid();
         var session = Guid.NewGuid();
 
-        var v1 = await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "PIPING", session);
-
-        await ctx.Claim.ClaimNodeAsync(nodeId, session);
-
         var wrongVersion = Guid.NewGuid();
+
+        await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "PIPING", session, conn, tx);
+        await ctx.Claim.ClaimNodeAsync(nodeId, session, conn, tx);
 
         var hash100 = await ctx.ValueStore.StoreNumberAsync(100d);
 
-        var act = async () => await ctx.Command.SetAttributeAsync(
-            nodeId,
-            wrongVersion,
-            1,
-            hash100,
-            2,
-            session);
+        var act = async () =>
+            await ctx.Command.SetAttributeAsync(
+                nodeId,
+                wrongVersion,
+                1,
+                hash100,
+                2,
+                session,
+                conn,
+                tx);
 
         await act.Should()
             .ThrowAsync<InvalidOperationException>()
             .WithMessage("*Version mismatch*");
+
+        tx.Rollback();
     }
 }

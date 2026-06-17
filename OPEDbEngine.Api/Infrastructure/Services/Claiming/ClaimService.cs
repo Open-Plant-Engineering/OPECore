@@ -18,12 +18,13 @@ namespace OPEDbEngine.Infrastructure.Services.Claiming
         }
 
         // ✅ 1. Claim node (NO overwrite allowed)
-        public async Task ClaimNodeAsync(Guid nodeId, Guid sessionId)
+        public async Task ClaimNodeAsync(
+            Guid nodeId, 
+            Guid sessionId,
+            IDbConnection conn,
+            IDbTransaction tx)
         {
-            using var conn = _db.Create();
-            conn.Open();
-
-            var existing = await _claimRepo.GetOwner(conn, nodeId);
+            var existing = await _claimRepo.GetOwner(conn, nodeId, tx);
 
             if (existing != null)
                 throw new InvalidOperationException("Node is already claimed.");
@@ -46,29 +47,32 @@ namespace OPEDbEngine.Infrastructure.Services.Claiming
         }
 
         // ✅ 3. Release node (ONLY owner)
-        public async Task ReleaseNodeAsync(Guid nodeId, Guid sessionId)
+        public async Task ReleaseNodeAsync(
+            Guid nodeId, 
+            Guid sessionId, 
+            IDbConnection conn,
+            IDbTransaction tx)
         {
-            using var conn = _db.Create();
-            conn.Open();
+            var owner = await _claimRepo.GetOwner(conn, nodeId, tx);
 
-            var owner = await _claimRepo.GetOwner(conn, nodeId);
-
-            if (!owner.HasValue)
+            if (owner == null)
                 throw new InvalidOperationException("Node is not claimed.");
 
-            if (owner.Value != sessionId)
+            if (owner != sessionId)
                 throw new InvalidOperationException("Cannot release: not owner of claim.");
 
             await _claimRepo.DeleteClaim(conn, nodeId);
         }
 
         // ✅ 4. Force release (admin use)
-        public async Task ForceReleaseAsync(Guid nodeId, Guid sessionId, string reason)
+        public async Task ForceReleaseAsync(
+            Guid nodeId, 
+            Guid sessionId, 
+            string reason, 
+            IDbConnection conn,
+            IDbTransaction tx)
         {
-            using var conn = _db.Create();
-            conn.Open();
-            
-            await _claimRepo.DeleteClaim(conn, nodeId);
+            await _claimRepo.DeleteClaim(conn, nodeId, tx);
         }
     }
 }

@@ -31,12 +31,10 @@ namespace OPEDbEngine.Infrastructure.Services.Nodes
             Guid nodeId,
             string type,
             string owner,
-            Guid sessionId)
+            Guid sessionId,
+            IDbConnection conn,
+            IDbTransaction tx)
         {
-            using var conn = _db.Create();
-            conn.Open();
-
-            using var tx = conn.BeginTransaction();
 
             // ✅ 1. Check node exists
             if (await _nodeRepo.Exists(conn, nodeId, tx))
@@ -63,8 +61,6 @@ namespace OPEDbEngine.Infrastructure.Services.Nodes
                 emptySet,
                 sessionId,
                 tx);
-
-            tx.Commit();
 
             return versionId;
         }
