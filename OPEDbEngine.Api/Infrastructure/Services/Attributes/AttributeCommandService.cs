@@ -1,11 +1,11 @@
 using System.Data;
-
 using Dapper;
 using OPEDbEngine.Core.Interfaces;
 using OPEDbEngine.Core.Models;
 using OPEDbEngine.Infrastructure.Data;
 using OPEDbEngine.Infrastructure.Repositories;
 using OPEDbEngine.Infrastructure.Models;
+using OPEDbEngine.Infrastructure.Mappers; // ✅ added
 
 namespace OPEDbEngine.Infrastructure.Services.Attributes
 {
@@ -18,7 +18,6 @@ namespace OPEDbEngine.Infrastructure.Services.Attributes
         private readonly AttributeRepository _attributeRepo;
         private readonly NodeRepository _nodeRepo;
         private readonly VersionRepository _versionRepo;
-
 
         public AttributeCommandService(
             DbConnectionFactory db,
@@ -71,14 +70,12 @@ namespace OPEDbEngine.Infrastructure.Services.Attributes
             Guid sessionId,
             IDbConnection conn,
             IDbTransaction tx)
-        {   
+        {
             await _claim.ValidateClaimAsync(nodeId, sessionId, conn, tx);
-            
-            // ✅ 1. Validate node exists
+
             if (!await _nodeRepo.Exists(conn, nodeId, tx))
                 throw new InvalidOperationException("Node does not exist.");
 
-            // ✅ 2. Get current version (NON NULL GUARANTEE)
             var currentVersion = await _versionRepo.GetCurrentVersion(conn, nodeId, tx);
 
             if (currentVersion == null)
@@ -87,21 +84,18 @@ namespace OPEDbEngine.Infrastructure.Services.Attributes
             if (currentVersion.Value != expectedVersionId)
                 throw new InvalidOperationException("Version mismatch.");
 
-            // ✅ 3. Get current attribute set (STRICT resolution)
             var currentSet = await _versionRepo.GetAttributeSetId(
                 conn,
                 currentVersion.Value,
                 nodeId,
                 tx);
 
-            // ✅ 4. Build new attribute set
             var newSet = await _attrService.BuildAttributeSetAsync(
                 currentSet,
                 items,
                 conn,
                 tx);
 
-            // ✅ 5. Create new version (same TX)
             var newVersion = await _versionService.CreateVersionAsync(
                 nodeId,
                 expectedVersionId,
@@ -123,7 +117,6 @@ namespace OPEDbEngine.Infrastructure.Services.Attributes
         {
             try
             {
-                // ✅ validate claim
                 await _claim.ValidateClaimAsync(nodeId, sessionId, conn, tx);
 
                 var currentSet = await _versionRepo.GetAttributeSetId(
@@ -132,24 +125,20 @@ namespace OPEDbEngine.Infrastructure.Services.Attributes
                     nodeId,
                     tx);
 
-                // ✅ read items
+                // ✅ mapping applied here
                 var rows = await _attributeRepo.GetBySetId(conn, currentSet, tx);
 
-                var items = rows.Select(r => new AttributeItem
-                {
-                    Key = r.Key,
-                    ValueHash = r.ValueHash,
-                    ValueType = r.ValueType
-                }).ToList();
+                var items = rows
+                    .Select(r => AttributeMapper.ToDomain(r)) // ✅ CHANGED
+                    .ToList();
 
-                // ✅ remove key
                 var filtered = items.Where(x => x.Key != key).ToList();
+
                 if (filtered.Count == 0)
                 {
                     filtered = new List<AttributeItem>();
                 }
 
-                // ✅ build new set
                 Guid newSet;
                 if (filtered.Count == 0)
                 {
@@ -164,7 +153,6 @@ namespace OPEDbEngine.Infrastructure.Services.Attributes
                         tx);
                 }
 
-                // ✅ create new version
                 var newVersion = await _versionService.CreateVersionAsync(
                     nodeId,
                     expectedVersionId,
@@ -192,7 +180,6 @@ namespace OPEDbEngine.Infrastructure.Services.Attributes
             IDbConnection conn,
             IDbTransaction tx)
         {
-
             await _claim.ValidateClaimAsync(nodeId, sessionId, conn, tx);
 
             var currentSet = await _versionRepo.GetAttributeSetId(
@@ -201,21 +188,18 @@ namespace OPEDbEngine.Infrastructure.Services.Attributes
                 nodeId,
                 tx);
 
+            // ✅ mapping applied here
             var rows = await _attributeRepo.GetBySetId(conn, currentSet, tx);
-            
-            var items = rows.Select(r => new AttributeItem
-            {
-                Key = r.Key,
-                ValueHash = r.ValueHash,
-                ValueType = r.ValueType
-            }).ToList();
+
+            var items = rows
+                .Select(r => AttributeMapper.ToDomain(r)) // ✅ CHANGED
+                .ToList();
 
             var keySet = keys.ToHashSet();
 
             var filtered = items.Where(x => !keySet.Contains(x.Key)).ToList();
 
-            Guid newSet;
-            newSet = await _attrService.BuildAttributeSetAsync(
+            var newSet = await _attrService.BuildAttributeSetAsync(
                 currentSet,
                 filtered,
                 conn,
@@ -231,6 +215,5 @@ namespace OPEDbEngine.Infrastructure.Services.Attributes
 
             return newVersion;
         }
-
     }
 }

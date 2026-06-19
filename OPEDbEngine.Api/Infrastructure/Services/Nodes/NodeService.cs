@@ -35,12 +35,19 @@ namespace OPEDbEngine.Infrastructure.Services.Nodes
             IDbConnection conn,
             IDbTransaction tx)
         {
+            // ✅ DOMAIN OBJECT INTRODUCED
+            var node = new Node
+            {
+                Id = nodeId,
+                Type = type,
+                Owner = owner
+            };
 
             // ✅ 1. Check node exists
-            if (await _nodeRepo.Exists(conn, nodeId, tx))
+            if (await _nodeRepo.Exists(conn, node.Id, tx))
                 throw new InvalidOperationException("Node already exists.");
 
-            // ✅ 2. Build empty set
+            // ✅ 2. Build empty set (domain already used)
             var emptySet = await _attrService.BuildAttributeSetAsync(
                 null,
                 Enumerable.Empty<AttributeItem>(),
@@ -50,14 +57,20 @@ namespace OPEDbEngine.Infrastructure.Services.Nodes
             // ✅ 3. Create version
             var versionId = Guid.NewGuid();
 
-            // ✅ 4. Insert node
-            await _nodeRepo.InsertNode(conn, nodeId, type, owner, versionId, tx);
+            // ✅ 4. Insert node using domain data
+            await _nodeRepo.InsertNode(
+                conn,
+                node.Id,
+                node.Type,
+                node.Owner,
+                versionId,
+                tx);
 
             // ✅ 5. Insert first version
             await _versionRepo.InsertFirstVersion(
                 conn,
                 versionId,
-                nodeId,
+                node.Id,
                 emptySet,
                 sessionId,
                 tx);

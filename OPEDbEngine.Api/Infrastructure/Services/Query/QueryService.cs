@@ -1,7 +1,8 @@
 using OPEDbEngine.Core.DTOs;
 using OPEDbEngine.Core.Interfaces;
+using OPEDbEngine.Core.Models;
+using OPEDbEngine.Infrastructure.Mappers;
 using OPEDbEngine.Infrastructure.Repositories;
-using OPEDbEngine.Infrastructure.Mappers; // ✅ added
 using System.Data;
 
 namespace OPEDbEngine.Infrastructure.Services.Query
@@ -35,17 +36,16 @@ namespace OPEDbEngine.Infrastructure.Services.Query
             if (nodeRow == null)
                 throw new InvalidOperationException("Node not found");
 
-            var node = NodeMapper.ToDomain(nodeRow); // ✅ mapping
+            // ✅ ROW → DOMAIN
+            var node = NodeMapper.ToDomain(nodeRow);
 
             if (nodeRow.Current_version_id == null)
                 throw new InvalidOperationException("Node has no version");
 
             return await BuildNode(
-                conn,
-                node.Id,
-                node.Type,
-                node.Owner,
+                node,
                 nodeRow.Current_version_id.Value,
+                conn,
                 tx);
         }
 
@@ -55,48 +55,47 @@ namespace OPEDbEngine.Infrastructure.Services.Query
             IDbConnection conn,
             IDbTransaction? tx = null)
         {
-            var nodeRow = await _nodeRepo.GetNodeMeta(conn, nodeId);
+            var nodeMetaRow = await _nodeRepo.GetNodeMeta(conn, nodeId);
 
-            if (nodeRow == null)
+            if (nodeMetaRow == null)
                 throw new InvalidOperationException("Node not found");
 
-            var node = NodeMapper.ToDomain(nodeRow); // ✅ mapping
+            // ✅ ROW → DOMAIN
+            var node = NodeMapper.ToDomain(nodeMetaRow);
 
             return await BuildNode(
-                conn,
-                node.Id,
-                node.Type,
-                node.Owner,
+                node,
                 versionId,
+                conn,
                 tx);
         }
 
+        // ✅ DOMAIN-DRIVEN method
         private async Task<NodeDto> BuildNode(
-            IDbConnection conn,
-            Guid nodeId,
-            string type,
-            string owner,
+            Node node,
             Guid versionId,
+            IDbConnection conn,
             IDbTransaction? tx)
         {
+            // ✅ VERSION resolution still from DB (can later map if needed)
             var setId = await _versionRepo.GetAttributeSetIdByVersion(conn, versionId);
 
-            var attrs = await _attributeRepo.GetBySetId(conn, setId, tx);
+            var attrRows = await _attributeRepo.GetBySetId(conn, setId, tx);
 
             var result = new NodeDto
             {
-                NodeId = nodeId,
+                NodeId = node.Id,
                 VersionId = versionId,
-                Type = type,
-                Owner = owner
+                Type = node.Type,
+                Owner = node.Owner
             };
 
-            foreach (var attr in attrs)
+            foreach (var row in attrRows)
             {
-                var value = await ResolveValue(conn, attr.ValueHash, attr.ValueType, tx);
+                var value = await ResolveValue(conn, row.ValueHash, row.ValueType, tx);
 
-                // ✅ mapping here instead of manual creation
-                result.Attributes.Add(AttributeMapper.ToDto(attr, value));
+                // ✅ ROW → DTO via mapper
+                result.Attributes.Add(AttributeMapper.ToDto(row, value));
             }
 
             return result;

@@ -1,5 +1,6 @@
 using Dapper;
 using OPEDbEngine.Core.Interfaces;
+using OPEDbEngine.Core.Models;
 using OPEDbEngine.Infrastructure.Repositories;
 using System.Data;
 using OPEDbEngine.Infrastructure.Sql;
@@ -23,38 +24,41 @@ namespace OPEDbEngine.Infrastructure.Services.Versioning
             IDbConnection conn,
             IDbTransaction tx)
         {
+            // ✅ DOMAIN OBJECT INTRODUCED
+            var version = new Core.Models.Version
+            {
+                Id = Guid.NewGuid(),
+                NodeId = nodeId,
+                ParentVersionId = expectedVersionId,
+                AttributeSetId = attributeSetId
+            };
 
-            var newVersionId = Guid.NewGuid();
-
-            // ✅ Insert new version
             await conn.ExecuteAsync(
                 VersionSql.InsertVersion,
                 new
                 {
-                    Id = newVersionId,
-                    NodeId = nodeId,
-                    Parent = expectedVersionId,   // ✅ TRUST caller
-                    AttrSet = attributeSetId,
+                    Id = version.Id,
+                    NodeId = version.NodeId,
+                    Parent = version.ParentVersionId,
+                    AttrSet = version.AttributeSetId,
                     Session = sessionId
                 },
                 tx);
 
-            // ✅ Update node pointer
             var rows = await conn.ExecuteAsync(
-                VersionSql.UpdateNodeVersion,   // ✅ OCC check here
+                VersionSql.UpdateNodeVersion,
                 new
                 {
-                    Version = newVersionId,
-                    NodeId = nodeId,
+                    Version = version.Id,
+                    NodeId = version.NodeId,
                     Expected = expectedVersionId
                 },
                 tx);
 
-            // ✅ Ensure exactly one row updated
             if (rows != 1)
                 throw new InvalidOperationException("Version mismatch.");
 
-            return newVersionId;
+            return version.Id;
         }
     }
 }
