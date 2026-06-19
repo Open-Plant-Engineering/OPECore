@@ -24,6 +24,7 @@ namespace OPEDbEngine.Infrastructure.Models
 
     public class NodeMeta
     {
+        public Guid Id { get; set; }
         public string Type { get; set; } = default!;
         public string Owner { get; set; } = default!;
     }

@@ -1,6 +1,7 @@
 using OPEDbEngine.Core.DTOs;
 using OPEDbEngine.Core.Interfaces;
 using OPEDbEngine.Infrastructure.Repositories;
+using OPEDbEngine.Infrastructure.Mappers; // ✅ added
 using System.Data;
 
 namespace OPEDbEngine.Infrastructure.Services.Query
@@ -24,26 +25,27 @@ namespace OPEDbEngine.Infrastructure.Services.Query
             _valueRepo = valueRepo;
         }
 
-        // ✅ NO internal connection creation
         public async Task<NodeDto> GetNodeAsync(
             Guid nodeId,
             IDbConnection conn,
             IDbTransaction? tx = null)
         {
-            var node = await _nodeRepo.GetNode(conn, nodeId);
+            var nodeRow = await _nodeRepo.GetNode(conn, nodeId);
 
-            if (node == null)
+            if (nodeRow == null)
                 throw new InvalidOperationException("Node not found");
 
-            if (node.Current_version_id == null)
+            var node = NodeMapper.ToDomain(nodeRow); // ✅ mapping
+
+            if (nodeRow.Current_version_id == null)
                 throw new InvalidOperationException("Node has no version");
 
             return await BuildNode(
                 conn,
-                nodeId,
+                node.Id,
                 node.Type,
                 node.Owner,
-                node.Current_version_id.Value,
+                nodeRow.Current_version_id.Value,
                 tx);
         }
 
@@ -53,14 +55,16 @@ namespace OPEDbEngine.Infrastructure.Services.Query
             IDbConnection conn,
             IDbTransaction? tx = null)
         {
-            var node = await _nodeRepo.GetNodeMeta(conn, nodeId);
+            var nodeRow = await _nodeRepo.GetNodeMeta(conn, nodeId);
 
-            if (node == null)
+            if (nodeRow == null)
                 throw new InvalidOperationException("Node not found");
+
+            var node = NodeMapper.ToDomain(nodeRow); // ✅ mapping
 
             return await BuildNode(
                 conn,
-                nodeId,
+                node.Id,
                 node.Type,
                 node.Owner,
                 versionId,
@@ -91,12 +95,8 @@ namespace OPEDbEngine.Infrastructure.Services.Query
             {
                 var value = await ResolveValue(conn, attr.ValueHash, attr.ValueType, tx);
 
-                result.Attributes.Add(new AttributeDto
-                {
-                    Key = attr.Key,
-                    ValueType = attr.ValueType,
-                    Value = value
-                });
+                // ✅ mapping here instead of manual creation
+                result.Attributes.Add(AttributeMapper.ToDto(attr, value));
             }
 
             return result;

@@ -8,7 +8,7 @@ public static class QuerySql
         WHERE id = @Id";
 
     public const string GetNodeMeta = @"
-        SELECT type, owner
+        SELECT id, type, owner
         FROM nodes
         WHERE id = @Id";
 
