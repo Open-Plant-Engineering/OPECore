@@ -57,5 +57,18 @@ namespace OPEDbEngine.Infrastructure.Repositories
                 QuerySql.GetAttributeSet,
                 new { Id = versionId });
         }
+
+        public async Task<IEnumerable<Version>> GetVersionsByNode(
+            IDbConnection conn,
+            Guid nodeId)
+        {
+            return await conn.QueryAsync<Version>(
+                @"SELECT id, node_id as NodeId, parent as ParentVersionId, 
+                         attr_set as AttributeSetId, session as SessionId, created_at as CreatedAt
+                  FROM versions
+                  WHERE node_id = @NodeId
+                  ORDER BY created_at ASC",
+                new { NodeId = nodeId });
+        }
     }
 }

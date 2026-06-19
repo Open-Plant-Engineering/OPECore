@@ -60,5 +60,6 @@ namespace OPEDbEngine.Infrastructure.Models
         public Guid? Parent_version_id { get; set; }
         public Guid Attribute_set_id { get; set; }
         public Guid Created_by { get; set; }
+        public Guid SessionId { get; set; }
     }
 }

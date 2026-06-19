@@ -8,9 +8,15 @@ import "Protos/node.proto";
 
 service WorkService {
 
-  // ✅ Streaming write pipeline
   rpc StreamSaveChanges (stream SaveNodeRequest)
       returns (stream SaveNodeResponse);
+
+  rpc StreamGetWork (GetWorkRequest)
+      returns (stream GetWorkResponse);
+
+  rpc StreamNodeHistory (NodeHistoryRequest)
+      returns (stream NodeHistoryResponse);
+
 }
 
 
@@ -32,4 +38,37 @@ message SaveNodeResponse {
   bool success = 2;
   string message = 3;
   string versionId = 4;
+}
+
+message GetWorkRequest {
+  string nodeId = 1;
+}
+
+message GetWorkResponse {
+  string nodeId = 1;
+  string versionId = 2;
+
+  repeated AttributeSnapshot attributes = 3;
+}
+
+message AttributeSnapshot {
+  int32 key = 1;
+  int32 valueType = 2;
+  string value = 3;
+}
+
+message NodeHistoryRequest {
+  string nodeId = 1;
+}
+
+message NodeHistoryResponse {
+  string nodeId = 1;
+  string versionId = 2;
+  string parentVersionId = 3;
+
+  string sessionId = 4;
+
+  int64 timestamp = 5;
+
+  repeated AttributeSnapshot attributes = 6;
 }
