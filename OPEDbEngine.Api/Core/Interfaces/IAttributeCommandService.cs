@@ -22,5 +22,22 @@ namespace OPEDbEngine.Core.Interfaces
             Guid sessionId,
             IDbConnection conn,
             IDbTransaction tx);
+
+        Task<Guid> RemoveAttributesAsync(
+            Guid nodeId,
+            Guid expectedVersionId,
+            IEnumerable<int> keys,
+            Guid sessionId,
+            IDbConnection conn,
+            IDbTransaction tx);
+
+        Task<Guid> RemoveAttributeAsync(
+            Guid nodeId,
+            Guid expectedVersionId,
+            int key,
+            Guid sessionId,
+            IDbConnection conn,
+            IDbTransaction tx);
+        
     }
 }

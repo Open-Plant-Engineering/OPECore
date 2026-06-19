@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+option csharp_namespace = "OPEDbEngine.gRPC.Work";
+
+package work;
+
+import "Protos/node.proto";
+
+service WorkService {
+
+  // ✅ Streaming write pipeline
+  rpc StreamSaveChanges (stream SaveNodeRequest)
+      returns (stream SaveNodeResponse);
+}
+
+
+// ✅ REQUEST
+message SaveNodeRequest {
+  oneof operation {
+
+    node.CreateNodeRequest createNode = 1;
+    node.SetAttributeRequest setAttribute = 2;
+    node.RemoveAttributeRequest removeAttribute = 3;
+
+  }
+}
+
+
+// ✅ RESPONSE
+message SaveNodeResponse {
+  string nodeId = 1;
+  bool success = 2;
+  string message = 3;
+  string versionId = 4;
+}

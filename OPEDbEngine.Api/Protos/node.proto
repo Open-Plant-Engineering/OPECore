@@ -2,6 +2,8 @@ syntax = "proto3";
 
 option csharp_namespace = "OPEDbEngine.gRPC.Node";
 
+package node;
+
 // ✅ MAIN SERVICE
 service NodeService {
   rpc CreateNode (CreateNodeRequest) returns (CreateNodeResponse);
