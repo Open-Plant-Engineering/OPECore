@@ -1,5 +1,5 @@
 using Grpc.Core;
-using OPEDbEngine.Api;
+using OPEDbEngine.gRPC.Node;
 using OPEDbEngine.Infrastructure.Data;
 using OPEDbEngine.Infrastructure.Services.Nodes;
 using OPEDbEngine.Infrastructure.Services.Attributes;
@@ -9,10 +9,12 @@ using InfraNodeService = OPEDbEngine.Infrastructure.Services.Nodes.NodeService;
 using OPEDbEngine.Infrastructure.Services.ValueStore;
 using OPEDbEngine.Core.Interfaces;
 using OPEDbEngine.Core.Models;
+using NodeGrpc = OPEDbEngine.gRPC.Node;
+using NodeDomainService = OPEDbEngine.Infrastructure.Services.Nodes.NodeService;
 
 namespace OPEDbEngine.Api.Services
 {
-    public class NodeGrpcService : NodeService.NodeServiceBase
+    public class NodeGrpcService : NodeGrpc.NodeService.NodeServiceBase
     {
         private readonly InfraNodeService _nodeService;
         private readonly IClaimService _claimService;
@@ -155,7 +157,7 @@ namespace OPEDbEngine.Api.Services
 
             foreach (var attr in node.Attributes)
             {
-                response.Attributes.Add(new Attribute
+                response.Attributes.Add(new NodeGrpc.Attribute
                 {
                     Key = attr.Key,
                     ValueType = attr.ValueType,

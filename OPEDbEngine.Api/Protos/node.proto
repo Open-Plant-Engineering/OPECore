@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-option csharp_namespace = "OPEDbEngine.Api";
+option csharp_namespace = "OPEDbEngine.gRPC.Node";
 
 // ✅ MAIN SERVICE
 service NodeService {

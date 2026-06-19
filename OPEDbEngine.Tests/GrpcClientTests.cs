@@ -1,6 +1,8 @@
 using FluentAssertions;
 using Grpc.Net.Client;
-using OPEDbEngine.Api;
+using SessionGrpc = OPEDbEngine.gRPC.session;
+using SessionDomain = OPEDbEngine.Infrastructure.Services;
+using NodeGrpc = OPEDbEngine.gRPC.Node;
 using Xunit;
 
 public class GrpcClientTests
@@ -15,13 +17,13 @@ public class GrpcClientTests
     {
         using var channel = CreateChannel();
 
-        var client = new OPEDbEngine.Api.NodeService.NodeServiceClient(channel);
+        var client = new NodeGrpc.NodeService.NodeServiceClient(channel);
 
         var nodeId = Guid.NewGuid().ToString();
         var sessionId = Guid.NewGuid().ToString();
 
         // ✅ 1. Create Node
-        var createResponse = await client.CreateNodeAsync(new CreateNodeRequest
+        var createResponse = await client.CreateNodeAsync(new NodeGrpc.CreateNodeRequest
         {
             NodeId = nodeId,
             Type = "PIPE",
@@ -34,7 +36,7 @@ public class GrpcClientTests
         var v1 = createResponse.VersionId;
 
         // ✅ 2. Claim Node
-        var claimResponse = await client.ClaimNodeAsync(new ClaimNodeRequest
+        var claimResponse = await client.ClaimNodeAsync(new NodeGrpc.ClaimNodeRequest
         {
             NodeId = nodeId,
             SessionId = sessionId
@@ -44,12 +46,12 @@ public class GrpcClientTests
 
         // ✅ 3. (IMPORTANT) Generate valueHash
         // Temporary manual hash for demo (must come from ValueStore API ideally)
-        var storeResponse = await client.StoreValueAsync(new StoreValueRequest
+        var storeResponse = await client.StoreValueAsync(new NodeGrpc.StoreValueRequest
         {
             NumberValue = 100
         });
 
-        var setResponse = await client.SetAttributeAsync(new SetAttributeRequest
+        var setResponse = await client.SetAttributeAsync(new NodeGrpc.SetAttributeRequest
         {
             NodeId = nodeId,
             VersionId = v1,
@@ -64,7 +66,7 @@ public class GrpcClientTests
         var v2 = setResponse.NewVersionId;
 
         // ✅ 4. Get Node
-        var node = await client.GetNodeAsync(new GetNodeRequest
+        var node = await client.GetNodeAsync(new NodeGrpc.GetNodeRequest
         {
             NodeId = nodeId
         });
@@ -75,7 +77,7 @@ public class GrpcClientTests
             a.Key == 1 &&
             a.Value == "100");
 
-        var removeResponse = await client.RemoveAttributeAsync(new RemoveAttributeRequest
+        var removeResponse = await client.RemoveAttributeAsync(new NodeGrpc.RemoveAttributeRequest
         {
             NodeId = nodeId,
             VersionId = v2,
@@ -83,7 +85,7 @@ public class GrpcClientTests
             SessionId = sessionId
         });
         
-        var nodeAfterRemove = await client.GetNodeAsync(new GetNodeRequest
+        var nodeAfterRemove = await client.GetNodeAsync(new NodeGrpc.GetNodeRequest
         {
             NodeId = nodeId
         });
@@ -95,12 +97,12 @@ public class GrpcClientTests
     public async Task Should_Bulk_Set_Attributes()
     {
         using var channel = GrpcChannel.ForAddress("http://localhost:5217");
-        var client = new NodeService.NodeServiceClient(channel);
+        var client = new NodeGrpc.NodeService.NodeServiceClient(channel);
 
         var nodeId = Guid.NewGuid().ToString();
         var session = Guid.NewGuid().ToString();
 
-        var v1 = (await client.CreateNodeAsync(new CreateNodeRequest
+        var v1 = (await client.CreateNodeAsync(new NodeGrpc.CreateNodeRequest
         {
             NodeId = nodeId,
             Type = "PIPE",
@@ -108,81 +110,30 @@ public class GrpcClientTests
             SessionId = session
         })).VersionId;
 
-        await client.ClaimNodeAsync(new ClaimNodeRequest
+        await client.ClaimNodeAsync(new NodeGrpc.ClaimNodeRequest
         {
             NodeId = nodeId,
             SessionId = session
         });
 
-        var v100 = await client.StoreValueAsync(new StoreValueRequest { NumberValue = 100 });
-        var v200 = await client.StoreValueAsync(new StoreValueRequest { NumberValue = 200 });
+        var v100 = await client.StoreValueAsync(new NodeGrpc.StoreValueRequest { NumberValue = 100 });
+        var v200 = await client.StoreValueAsync(new NodeGrpc.StoreValueRequest { NumberValue = 200 });
 
-        var res = await client.BulkSetAttributesAsync(new BulkSetAttributesRequest
+        var res = await client.BulkSetAttributesAsync(new NodeGrpc.BulkSetAttributesRequest
         {
             NodeId = nodeId,
             VersionId = v1,
             SessionId = session,
             Attributes =
             {
-                new AttributeWrite { Key = 1, ValueHash = v100.ValueHash, ValueType = v100.ValueType },
-                new AttributeWrite { Key = 2, ValueHash = v200.ValueHash, ValueType = v200.ValueType }
+                new NodeGrpc.AttributeWrite { Key = 1, ValueHash = v100.ValueHash, ValueType = v100.ValueType },
+                new NodeGrpc.AttributeWrite { Key = 2, ValueHash = v200.ValueHash, ValueType = v200.ValueType }
             }
         });
 
-        var node = await client.GetNodeAsync(new GetNodeRequest { NodeId = nodeId });
+        var node = await client.GetNodeAsync(new NodeGrpc.GetNodeRequest { NodeId = nodeId });
 
         node.Attributes.Should().HaveCount(2);
     }
-
-    // [Fact]
-    // public async Task Should_Bulk_Remove_Attributes()
-    // {
-    //     using var channel = GrpcChannel.ForAddress("http://localhost:5217");
-    //     var client = new NodeService.NodeServiceClient(channel);
-    // 
-    //     var nodeId = Guid.NewGuid().ToString();
-    //     var session = Guid.NewGuid().ToString();
-    // 
-    //     var v1 = (await client.CreateNodeAsync(new CreateNodeRequest
-    //     {
-    //         NodeId = nodeId,
-    //         Type = "PIPE",
-    //         Owner = "P",
-    //         SessionId = session
-    //     })).VersionId;
-    // 
-    //     await client.ClaimNodeAsync(new ClaimNodeRequest
-    //     {
-    //         NodeId = nodeId,
-    //         SessionId = session
-    //     });
-    // 
-    //     var v100 = await client.StoreValueAsync(new StoreValueRequest { NumberValue = 100 });
-    //     var v200 = await client.StoreValueAsync(new StoreValueRequest { NumberValue = 200 });
-    // 
-    //     var v2 = (await client.BulkSetAttributesAsync(new BulkSetAttributesRequest
-    //     {
-    //         NodeId = nodeId,
-    //         VersionId = v1,
-    //         SessionId = session,
-    //         Attributes =
-    //         {
-    //             new AttributeWrite { Key = 1, ValueHash = v100.ValueHash, ValueType = v100.ValueType },
-    //             new AttributeWrite { Key = 2, ValueHash = v200.ValueHash, ValueType = v200.ValueType }
-    //         }
-    //     })).NewVersionId;
-    // 
-    //     var v3 = (await client.BulkRemoveAttributesAsync(new BulkRemoveAttributesRequest
-    //     {
-    //         NodeId = nodeId,
-    //         VersionId = v2,
-    //         SessionId = session,
-    //         Keys = { 1, 2 }
-    //     })).NewVersionId;
-    // 
-    //     var node = await client.GetNodeAsync(new GetNodeRequest { NodeId = nodeId });
-    // 
-    //     node.Attributes.Should().BeEmpty();
-    // }
-
+    
 }
