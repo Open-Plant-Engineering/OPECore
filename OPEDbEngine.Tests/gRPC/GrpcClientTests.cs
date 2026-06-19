@@ -1,6 +1,6 @@
 using FluentAssertions;
 using Grpc.Net.Client;
-using SessionGrpc = OPEDbEngine.gRPC.session;
+using SessionGrpc = OPEDbEngine.gRPC.Session;
 using SessionDomain = OPEDbEngine.Infrastructure.Services;
 using NodeGrpc = OPEDbEngine.gRPC.Node;
 using Xunit;

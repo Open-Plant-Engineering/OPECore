@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+option csharp_namespace = "OPEDbEngine.gRPC.Claim";
+
+package claim;
+
+service ClaimService {
+
+  // ✅ Stream CLAIM multiple nodes
+  rpc StreamClaimNodes (stream ClaimNodeRequest)
+      returns (stream ClaimNodeResponse);
+
+  // ✅ Stream UNCLAIM multiple nodes
+  rpc StreamReleaseNodes (stream ReleaseNodeRequest)
+      returns (stream ReleaseNodeResponse);
+}
+
+
+// ✅ REQUEST: Claim node
+message ClaimNodeRequest {
+  string nodeId = 1;
+  string sessionId = 2;
+}
+
+
+// ✅ RESPONSE: Claim result
+message ClaimNodeResponse {
+  string nodeId = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+
+// ✅ REQUEST: Release node
+message ReleaseNodeRequest {
+  string nodeId = 1;
+  string sessionId = 2;
+}
+
+
+// ✅ RESPONSE: Release result
+message ReleaseNodeResponse {
+  string nodeId = 1;
+  bool success = 2;
+  string message = 3;
+}

@@ -1,6 +1,6 @@
 using FluentAssertions;
 using Xunit;
-using SessionGrpc = OPEDbEngine.gRPC.session;
+using SessionGrpc = OPEDbEngine.gRPC.Session;
 
 public class SessionGrpcTests : GrpcTestBase
 {

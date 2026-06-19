@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-option csharp_namespace = "OPEDbEngine.gRPC.session";
+option csharp_namespace = "OPEDbEngine.gRPC.Session";
 
 package session;
 

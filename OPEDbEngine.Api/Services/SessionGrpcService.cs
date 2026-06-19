@@ -1,7 +1,7 @@
 using Grpc.Core;
 using OPEDbEngine.Core.Interfaces;
 using OPEDbEngine.Infrastructure.Data;
-using SessionGrpc = OPEDbEngine.gRPC.session;
+using SessionGrpc = OPEDbEngine.gRPC.Session;
 using SessionDomain = OPEDbEngine.Infrastructure.Services;
 
 public class SessionGrpcService : SessionGrpc.SessionService.SessionServiceBase
