@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"name": "gRPC EndPoints",
+			"path": "../OPECore"
+		},
+		{
+			"name": "PyOPEClient",
+			"path": "../OPEClient"
+		}
+	],
+	"settings": {}
+}
