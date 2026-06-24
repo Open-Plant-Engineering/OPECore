@@ -11,11 +11,13 @@ namespace OPEDbEngine.Infrastructure.Services.Claiming
     {
         private readonly DbConnectionFactory _db;
         private readonly ClaimRepository _claimRepo;
+        private readonly SessionRepository _sessionRepo;
 
-        public ClaimService(DbConnectionFactory db, ClaimRepository claimRepo)
+        public ClaimService(DbConnectionFactory db, ClaimRepository claimRepo, SessionRepository sessionRepo)
         {
             _db = db;
             _claimRepo = claimRepo;
+            _sessionRepo = sessionRepo;
         }
 
         // ✅ 1. Claim node (NO overwrite allowed)
@@ -25,6 +27,11 @@ namespace OPEDbEngine.Infrastructure.Services.Claiming
             IDbConnection conn,
             IDbTransaction tx)
         {
+            var exists = await _sessionRepo.SessionExists(conn, sessionId, tx);
+
+            if (!exists)
+                throw new InvalidOperationException("Session does not exist.");
+
             var claim = new Claim // ✅ domain object introduced
             {
                 NodeId = nodeId,
@@ -46,6 +53,11 @@ namespace OPEDbEngine.Infrastructure.Services.Claiming
             IDbConnection conn,
             IDbTransaction tx)
         {
+            var exists = await _sessionRepo.SessionExists(conn, sessionId, tx);
+
+            if (!exists)
+                throw new InvalidOperationException("Session does not exist.");
+
             var claim = new Claim
             {
                 NodeId = nodeId,
@@ -65,6 +77,11 @@ namespace OPEDbEngine.Infrastructure.Services.Claiming
             IDbConnection conn,
             IDbTransaction tx)
         {
+            var exists = await _sessionRepo.SessionExists(conn, sessionId, tx);
+
+            if (!exists)
+                throw new InvalidOperationException("Session does not exist.");
+
             var claim = new Claim
             {
                 NodeId = nodeId,

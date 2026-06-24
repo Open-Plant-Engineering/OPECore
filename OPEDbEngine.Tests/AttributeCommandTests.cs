@@ -1,9 +1,19 @@
 using FluentAssertions;
 using OPEDbEngine.Core.Models;
 using Xunit;
+using System.Data;
 
-public class AttributeCommandTests : IClassFixture<DbFixture>
+public class AttributeCommandTests
 {
+    private async Task<Guid> CreateSession(TestContext ctx, IDbConnection conn, IDbTransaction tx)
+    {
+        var userId = "test-user";
+
+        await ctx.SessionRepo.EnsureUserExists(conn, userId, tx);
+
+        return await ctx.Session.StartSessionAsync(userId, conn, tx);
+    }
+
     [Fact]
     public async Task Should_Update_Attribute_And_Create_New_Version()
     {
@@ -13,8 +23,8 @@ public class AttributeCommandTests : IClassFixture<DbFixture>
         conn.Open();
         using var tx = conn.BeginTransaction();
 
+        var session = await CreateSession(ctx, conn, tx);
         var nodeId = Guid.NewGuid();
-        var session = Guid.NewGuid();
 
         var v1 = await ctx.Node.CreateNodeAsync(
             nodeId, "PIPE", "PIPING", session, conn, tx);
@@ -47,10 +57,11 @@ public class AttributeCommandTests : IClassFixture<DbFixture>
         conn.Open();
         using var tx = conn.BeginTransaction();
 
+        var session = await CreateSession(ctx, conn, tx);
         var nodeId = Guid.NewGuid();
-        var session = Guid.NewGuid();
 
-        var v1 = await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "PIPING", session, conn, tx);
+        var v1 = await ctx.Node.CreateNodeAsync(
+            nodeId, "PIPE", "PIPING", session, conn, tx);
 
         await ctx.Claim.ClaimNodeAsync(nodeId, session, conn, tx);
 
@@ -80,10 +91,11 @@ public class AttributeCommandTests : IClassFixture<DbFixture>
         conn.Open();
         using var tx = conn.BeginTransaction();
 
+        var session = await CreateSession(ctx, conn, tx);
         var nodeId = Guid.NewGuid();
-        var session = Guid.NewGuid();
 
-        var v1 = await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "PIPING", session, conn, tx);
+        var v1 = await ctx.Node.CreateNodeAsync(
+            nodeId, "PIPE", "PIPING", session, conn, tx);
 
         var hash100 = await ctx.ValueStore.StoreNumberAsync(100d);
 
@@ -114,11 +126,12 @@ public class AttributeCommandTests : IClassFixture<DbFixture>
         conn.Open();
         using var tx = conn.BeginTransaction();
 
+        var ownerSession = await CreateSession(ctx, conn, tx);
+        var otherSession = await CreateSession(ctx, conn, tx);
         var nodeId = Guid.NewGuid();
-        var ownerSession = Guid.NewGuid();
-        var otherSession = Guid.NewGuid();
 
-        var v1 = await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "PIPING", ownerSession, conn, tx);
+        var v1 = await ctx.Node.CreateNodeAsync(
+            nodeId, "PIPE", "PIPING", ownerSession, conn, tx);
 
         await ctx.Claim.ClaimNodeAsync(nodeId, ownerSession, conn, tx);
 
@@ -151,10 +164,11 @@ public class AttributeCommandTests : IClassFixture<DbFixture>
         conn.Open();
         using var tx = conn.BeginTransaction();
 
+        var session = await CreateSession(ctx, conn, tx);
         var nodeId = Guid.NewGuid();
-        var session = Guid.NewGuid();
 
-        var v1 = await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "PIPING", session, conn, tx);
+        var v1 = await ctx.Node.CreateNodeAsync(
+            nodeId, "PIPE", "PIPING", session, conn, tx);
 
         await ctx.Claim.ClaimNodeAsync(nodeId, session, conn, tx);
 
@@ -197,12 +211,14 @@ public class AttributeCommandTests : IClassFixture<DbFixture>
         conn.Open();
         using var tx = conn.BeginTransaction();
 
+        var session = await CreateSession(ctx, conn, tx);
         var nodeId = Guid.NewGuid();
-        var session = Guid.NewGuid();
 
         var wrongVersion = Guid.NewGuid();
 
-        await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "PIPING", session, conn, tx);
+        await ctx.Node.CreateNodeAsync(
+            nodeId, "PIPE", "PIPING", session, conn, tx);
+
         await ctx.Claim.ClaimNodeAsync(nodeId, session, conn, tx);
 
         var hash100 = await ctx.ValueStore.StoreNumberAsync(100d);

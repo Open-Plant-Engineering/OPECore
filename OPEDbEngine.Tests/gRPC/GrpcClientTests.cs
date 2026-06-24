@@ -18,9 +18,16 @@ public class GrpcClientTests
         using var channel = CreateChannel();
 
         var client = new NodeGrpc.NodeService.NodeServiceClient(channel);
-
+        var sessionClient = new SessionGrpc.SessionService.SessionServiceClient(channel);
+        
+        var start = await sessionClient.StartSessionAsync(
+            new SessionGrpc.StartSessionRequest
+            {
+                UserId = "atul"
+            });
+        
         var nodeId = Guid.NewGuid().ToString();
-        var sessionId = Guid.NewGuid().ToString();
+        var sessionId = start.SessionId.ToString();
 
         // ✅ 1. Create Node
         var createResponse = await client.CreateNodeAsync(new NodeGrpc.CreateNodeRequest
@@ -98,9 +105,16 @@ public class GrpcClientTests
     {
         using var channel = GrpcChannel.ForAddress("http://localhost:5217");
         var client = new NodeGrpc.NodeService.NodeServiceClient(channel);
-
+        var sessionClient = new SessionGrpc.SessionService.SessionServiceClient(channel);
+        
+        var start = await sessionClient.StartSessionAsync(
+            new SessionGrpc.StartSessionRequest
+            {
+                UserId = "atul"
+            });
+        
         var nodeId = Guid.NewGuid().ToString();
-        var session = Guid.NewGuid().ToString();
+        var session = start.SessionId.ToString();
 
         var v1 = (await client.CreateNodeAsync(new NodeGrpc.CreateNodeRequest
         {

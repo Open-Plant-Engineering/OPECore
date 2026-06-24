@@ -21,11 +21,13 @@ public class TestContext
     public NodeRepository NodeRepo { get; }
     public VersionRepository VersionRepo { get; }
     public ClaimRepository ClaimRepo { get; }
+    public SessionRepository SessionRepo { get; }
     public ValueRepository ValueRepo { get; }
 
     public AttributeSetService AttributeSet { get; }
     public VersionService Version { get; }
     public NodeService Node { get; }
+    public SessionService Session { get; }
     public ClaimService Claim { get; }
     public AttributeCommandService Command { get; }
     public QueryService Query { get; }
@@ -44,6 +46,7 @@ public class TestContext
         VersionRepo = new VersionRepository();
         ClaimRepo = new ClaimRepository();
         ValueRepo = new ValueRepository();
+        SessionRepo = new SessionRepository();
 
         ValueStore = new ValueStoreService(Db, Hash, ValueRepo);
 
@@ -51,7 +54,8 @@ public class TestContext
         AttributeSet = new AttributeSetService(AttributeRepo);
         Version = new VersionService(VersionRepo);
         Node = new NodeService(Db, AttributeSet, NodeRepo, VersionRepo);
-        Claim = new ClaimService(Db, ClaimRepo);
+        Claim = new ClaimService(Db, ClaimRepo, SessionRepo);
+        Session = new SessionService(SessionRepo);
 
         Command = new AttributeCommandService(
             Db,

@@ -1,8 +1,18 @@
 using FluentAssertions;
 using Xunit;
+using System.Data;
 
-public class QueryServiceTests : IClassFixture<DbFixture>
+public class QueryServiceTests
 {
+    private async Task<Guid> CreateSession(TestContext ctx, IDbConnection conn, IDbTransaction tx)
+    {
+        var userId = "test-user";
+
+        await ctx.SessionRepo.EnsureUserExists(conn, userId, tx);
+
+        return await ctx.Session.StartSessionAsync(userId, conn, tx);
+    }
+
     [Fact]
     public async Task Should_Read_Updated_Value()
     {
@@ -12,8 +22,8 @@ public class QueryServiceTests : IClassFixture<DbFixture>
         conn.Open();
         using var tx = conn.BeginTransaction();
 
+        var session = await CreateSession(ctx, conn, tx);
         var nodeId = Guid.NewGuid();
-        var session = Guid.NewGuid();
 
         var v1 = await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "P", session, conn, tx);
 
@@ -55,8 +65,8 @@ public class QueryServiceTests : IClassFixture<DbFixture>
         conn.Open();
         using var tx = conn.BeginTransaction();
 
+        var session = await CreateSession(ctx, conn, tx);
         var nodeId = Guid.NewGuid();
-        var session = Guid.NewGuid();
 
         var v1 = await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "PIPING", session, conn, tx);
 
@@ -91,8 +101,8 @@ public class QueryServiceTests : IClassFixture<DbFixture>
         conn.Open();
         using var tx = conn.BeginTransaction();
 
+        var session = await CreateSession(ctx, conn, tx);
         var nodeId = Guid.NewGuid();
-        var session = Guid.NewGuid();
 
         var v1 = await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "PIPING", session, conn, tx);
 
@@ -148,8 +158,8 @@ public class QueryServiceTests : IClassFixture<DbFixture>
         conn.Open();
         using var tx = conn.BeginTransaction();
 
+        var session = await CreateSession(ctx, conn, tx);
         var nodeId = Guid.NewGuid();
-        var session = Guid.NewGuid();
 
         await ctx.Node.CreateNodeAsync(nodeId, "PIPE", "PIPING", session, conn, tx);
 

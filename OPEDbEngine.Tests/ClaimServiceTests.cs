@@ -1,38 +1,37 @@
 using Dapper;
 using FluentAssertions;
-using OPEDbEngine.Infrastructure.Data;
-using OPEDbEngine.Infrastructure.Services.Claiming;
 using Xunit;
-using OPEDbEngine.Infrastructure.Repositories;
 using System.Data;
 
-public class ClaimServiceTests : IClassFixture<DbFixture>
+public class ClaimServiceTests
 {
-    private DbConnectionFactory CreateDb()
+    private async Task<Guid> CreateSession(TestContext ctx, IDbConnection conn, IDbTransaction tx)
     {
-        return new DbConnectionFactory(
-            "Host=localhost;Port=5432;Database=opedb;Username=ope;Password=opepass");
+        var userId = "test-user";
+
+        await ctx.SessionRepo.EnsureUserExists(conn, userId, tx);
+
+        return await ctx.Session.StartSessionAsync(userId, conn, tx);
     }
 
     // ✅ 1. Should claim node
     [Fact]
     public async Task Should_Claim_Node()
     {
-        var db = CreateDb();
-        var service = new ClaimService(db, new ClaimRepository());
+        var ctx = new TestContext();
 
-        using var conn = db.Create();
+        using var conn = ctx.Db.Create();
         conn.Open();
         using var tx = conn.BeginTransaction();
 
+        var sessionId = await CreateSession(ctx, conn, tx);
         var nodeId = Guid.NewGuid();
-        var sessionId = Guid.NewGuid();
 
         await conn.ExecuteAsync(
             "INSERT INTO nodes (id, type, owner) VALUES (@Id,'PIPE','PIPING')",
             new { Id = nodeId }, tx);
 
-        await service.ClaimNodeAsync(nodeId, sessionId, conn, tx);
+        await ctx.Claim.ClaimNodeAsync(nodeId, sessionId, conn, tx);
 
         tx.Commit();
 
@@ -47,25 +46,24 @@ public class ClaimServiceTests : IClassFixture<DbFixture>
     [Fact]
     public async Task Should_Reject_When_Already_Claimed()
     {
-        var db = CreateDb();
-        var service = new ClaimService(db, new ClaimRepository());
+        var ctx = new TestContext();
 
-        using var conn = db.Create();
+        using var conn = ctx.Db.Create();
         conn.Open();
         using var tx = conn.BeginTransaction();
 
+        var session1 = await CreateSession(ctx, conn, tx);
+        var session2 = await CreateSession(ctx, conn, tx);
         var nodeId = Guid.NewGuid();
-        var session1 = Guid.NewGuid();
-        var session2 = Guid.NewGuid();
 
         await conn.ExecuteAsync(
             "INSERT INTO nodes (id, type, owner) VALUES (@Id,'PIPE','PIPING')",
             new { Id = nodeId }, tx);
 
-        await service.ClaimNodeAsync(nodeId, session1, conn, tx);
+        await ctx.Claim.ClaimNodeAsync(nodeId, session1, conn, tx);
 
-        var act = async () => 
-            await service.ClaimNodeAsync(nodeId, session2, conn, tx);
+        var act = async () =>
+            await ctx.Claim.ClaimNodeAsync(nodeId, session2, conn, tx);
 
         await act.Should()
             .ThrowAsync<InvalidOperationException>()
@@ -78,24 +76,23 @@ public class ClaimServiceTests : IClassFixture<DbFixture>
     [Fact]
     public async Task Should_Validate_Correct_Claim()
     {
-        var db = CreateDb();
-        var service = new ClaimService(db, new ClaimRepository());
+        var ctx = new TestContext();
 
-        using var conn = db.Create();
+        using var conn = ctx.Db.Create();
         conn.Open();
         using var tx = conn.BeginTransaction();
 
+        var sessionId = await CreateSession(ctx, conn, tx);
         var nodeId = Guid.NewGuid();
-        var sessionId = Guid.NewGuid();
 
         await conn.ExecuteAsync(
             "INSERT INTO nodes (id, type, owner) VALUES (@Id,'PIPE','PIPING')",
             new { Id = nodeId }, tx);
 
-        await service.ClaimNodeAsync(nodeId, sessionId, conn, tx);
+        await ctx.Claim.ClaimNodeAsync(nodeId, sessionId, conn, tx);
 
         var act = async () =>
-            await service.ValidateClaimAsync(nodeId, sessionId, conn, tx);
+            await ctx.Claim.ValidateClaimAsync(nodeId, sessionId, conn, tx);
 
         await act.Should().NotThrowAsync();
 
@@ -106,25 +103,24 @@ public class ClaimServiceTests : IClassFixture<DbFixture>
     [Fact]
     public async Task Should_Reject_When_Claimed_By_Other_Session()
     {
-        var db = CreateDb();
-        var service = new ClaimService(db, new ClaimRepository());
+        var ctx = new TestContext();
 
-        using var conn = db.Create();
+        using var conn = ctx.Db.Create();
         conn.Open();
         using var tx = conn.BeginTransaction();
 
+        var ownerSession = await CreateSession(ctx, conn, tx);
+        var otherSession = await CreateSession(ctx, conn, tx);
         var nodeId = Guid.NewGuid();
-        var ownerSession = Guid.NewGuid();
-        var otherSession = Guid.NewGuid();
 
         await conn.ExecuteAsync(
             "INSERT INTO nodes (id, type, owner) VALUES (@Id,'PIPE','PIPING')",
             new { Id = nodeId }, tx);
 
-        await service.ClaimNodeAsync(nodeId, ownerSession, conn, tx);
+        await ctx.Claim.ClaimNodeAsync(nodeId, ownerSession, conn, tx);
 
         var act = async () =>
-            await service.ValidateClaimAsync(nodeId, otherSession, conn, tx);
+            await ctx.Claim.ValidateClaimAsync(nodeId, otherSession, conn, tx);
 
         await act.Should()
             .ThrowAsync<InvalidOperationException>()
@@ -137,22 +133,21 @@ public class ClaimServiceTests : IClassFixture<DbFixture>
     [Fact]
     public async Task Should_Reject_When_No_Claim_Exists()
     {
-        var db = CreateDb();
-        var service = new ClaimService(db, new ClaimRepository());
+        var ctx = new TestContext();
 
-        using var conn = db.Create();
+        using var conn = ctx.Db.Create();
         conn.Open();
         using var tx = conn.BeginTransaction();
 
+        var sessionId = await CreateSession(ctx, conn, tx);
         var nodeId = Guid.NewGuid();
-        var sessionId = Guid.NewGuid();
 
         await conn.ExecuteAsync(
             "INSERT INTO nodes (id, type, owner) VALUES (@Id,'PIPE','PIPING')",
             new { Id = nodeId }, tx);
 
         var act = async () =>
-            await service.ValidateClaimAsync(nodeId, sessionId, conn, tx);
+            await ctx.Claim.ValidateClaimAsync(nodeId, sessionId, conn, tx);
 
         await act.Should()
             .ThrowAsync<InvalidOperationException>()
@@ -165,22 +160,21 @@ public class ClaimServiceTests : IClassFixture<DbFixture>
     [Fact]
     public async Task Should_Release_Node()
     {
-        var db = CreateDb();
-        var service = new ClaimService(db, new ClaimRepository());
+        var ctx = new TestContext();
 
-        using var conn = db.Create();
+        using var conn = ctx.Db.Create();
         conn.Open();
         using var tx = conn.BeginTransaction();
 
+        var sessionId = await CreateSession(ctx, conn, tx);
         var nodeId = Guid.NewGuid();
-        var session = Guid.NewGuid();
 
         await conn.ExecuteAsync(
             "INSERT INTO nodes (id, type, owner) VALUES (@Id,'PIPE','PIPING')",
             new { Id = nodeId }, tx);
 
-        await service.ClaimNodeAsync(nodeId, session, conn, tx);
-        await service.ReleaseNodeAsync(nodeId, session, conn, tx);
+        await ctx.Claim.ClaimNodeAsync(nodeId, sessionId, conn, tx);
+        await ctx.Claim.ReleaseNodeAsync(nodeId, sessionId, conn, tx);
 
         tx.Commit();
 
@@ -195,25 +189,24 @@ public class ClaimServiceTests : IClassFixture<DbFixture>
     [Fact]
     public async Task Should_Reject_Release_By_Other_User()
     {
-        var db = CreateDb();
-        var service = new ClaimService(db, new ClaimRepository());
+        var ctx = new TestContext();
 
-        using var conn = db.Create();
+        using var conn = ctx.Db.Create();
         conn.Open();
         using var tx = conn.BeginTransaction();
 
+        var owner = await CreateSession(ctx, conn, tx);
+        var other = await CreateSession(ctx, conn, tx);
         var nodeId = Guid.NewGuid();
-        var owner = Guid.NewGuid();
-        var other = Guid.NewGuid();
 
         await conn.ExecuteAsync(
             "INSERT INTO nodes (id, type, owner) VALUES (@Id,'PIPE','PIPING')",
             new { Id = nodeId }, tx);
 
-        await service.ClaimNodeAsync(nodeId, owner, conn, tx);
+        await ctx.Claim.ClaimNodeAsync(nodeId, owner, conn, tx);
 
         var act = async () =>
-            await service.ReleaseNodeAsync(nodeId, other, conn, tx);
+            await ctx.Claim.ReleaseNodeAsync(nodeId, other, conn, tx);
 
         await act.Should()
             .ThrowAsync<InvalidOperationException>()
@@ -226,23 +219,23 @@ public class ClaimServiceTests : IClassFixture<DbFixture>
     [Fact]
     public async Task Should_Force_Release()
     {
-        var db = CreateDb();
-        var service = new ClaimService(db, new ClaimRepository());
+        var ctx = new TestContext();
 
-        using var conn = db.Create();
+        using var conn = ctx.Db.Create();
         conn.Open();
         using var tx = conn.BeginTransaction();
 
+        var owner = await CreateSession(ctx, conn, tx);
+        var adminSession = await CreateSession(ctx, conn, tx);
         var nodeId = Guid.NewGuid();
-        var owner = Guid.NewGuid();
 
         await conn.ExecuteAsync(
             "INSERT INTO nodes (id, type, owner) VALUES (@Id,'PIPE','PIPING')",
             new { Id = nodeId }, tx);
 
-        await service.ClaimNodeAsync(nodeId, owner, conn, tx);
+        await ctx.Claim.ClaimNodeAsync(nodeId, owner, conn, tx);
 
-        await service.ForceReleaseAsync(nodeId, Guid.NewGuid(), "admin cleanup", conn, tx);
+        await ctx.Claim.ForceReleaseAsync(nodeId, adminSession, "admin cleanup", conn, tx);
 
         tx.Commit();
 
