@@ -17,7 +17,10 @@ public class SessionService : ISessionService
         IDbTransaction tx)
     {
         // ✅ ensure user exists
-        await _repo.EnsureUserExists(conn, userId, tx);
+        var exists = await _repo.UserExists(conn, userId, tx);
+
+        if (!exists)
+            throw new InvalidOperationException("User does not exist.");
     
         var sessionId = Guid.NewGuid();
     
