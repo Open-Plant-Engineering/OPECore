@@ -36,7 +36,7 @@ public class SessionGrpcService : SessionGrpc.SessionService.SessionServiceBase
         };
     }
 
-    public override async Task<SessionGrpc.EmptyResponse> CloseSession(
+    public override async Task<SessionGrpc.SessionActionResponse> CloseSession(
         SessionGrpc.CloseSessionRequest request,
         ServerCallContext context)
     {
@@ -44,17 +44,34 @@ public class SessionGrpcService : SessionGrpc.SessionService.SessionServiceBase
         conn.Open();
         using var tx = conn.BeginTransaction();
 
-        await _service.CloseSessionAsync(
-            Guid.Parse(request.SessionId),
-            conn,
-            tx);
+        try
+        {
+            await _service.CloseSessionAsync(
+                Guid.Parse(request.SessionId),
+                conn,
+                tx);
 
-        tx.Commit();
+            tx.Commit();
 
-        return new SessionGrpc.EmptyResponse();
+            return new SessionGrpc.SessionActionResponse
+            {
+                Success = true,
+                Message = "Session closed successfully"
+            };
+        }
+        catch (Exception ex)
+        {
+            tx.Rollback();
+
+            return new SessionGrpc.SessionActionResponse
+            {
+                Success = false,
+                Message = ex.Message
+            };
+        }
     }
 
-    public override async Task<SessionGrpc.EmptyResponse> AbortSession(
+    public override async Task<SessionGrpc.SessionActionResponse> AbortSession(
         SessionGrpc.AbortSessionRequest request,
         ServerCallContext context)
     {
@@ -62,14 +79,31 @@ public class SessionGrpcService : SessionGrpc.SessionService.SessionServiceBase
         conn.Open();
         using var tx = conn.BeginTransaction();
 
-        await _service.AbortSessionAsync(
-            Guid.Parse(request.SessionId),
-            request.Reason,
-            conn,
-            tx);
+        try
+        {
+            await _service.AbortSessionAsync(
+                Guid.Parse(request.SessionId),
+                request.Reason,
+                conn,
+                tx);
 
-        tx.Commit();
+            tx.Commit();
 
-        return new SessionGrpc.EmptyResponse();
+            return new SessionGrpc.SessionActionResponse
+            {
+                Success = true,
+                Message = "Session aborted successfully"
+            };
+        }
+        catch (Exception ex)
+        {
+            tx.Rollback();
+
+            return new SessionGrpc.SessionActionResponse
+            {
+                Success = false,
+                Message = ex.Message
+            };
+        }
     }
 }

@@ -46,7 +46,7 @@ namespace OPEDbEngine.Api.Services
             using var conn = _db.Create();
             conn.Open();
 
-            await foreach (var req in requestStream.ReadAllAsync())
+            await foreach (var req in requestStream.ReadAllAsync(context.CancellationToken))
             {
                 using var tx = conn.BeginTransaction();
 
@@ -123,6 +123,9 @@ namespace OPEDbEngine.Api.Services
                     });
                 }
             }
+
+            conn.Close();
+            conn.Dispose();
         }
 
         public override async Task StreamGetWork(
@@ -169,6 +172,9 @@ namespace OPEDbEngine.Api.Services
                     VersionId = "",
                 });
             }
+
+            conn.Close();
+            conn.Dispose();
         }
 
         public override async Task StreamNodeHistory(
@@ -267,6 +273,9 @@ namespace OPEDbEngine.Api.Services
                     NodeId = request.NodeId
                 });
             }
+
+            conn.Close();
+            conn.Dispose();
         }
 
     }

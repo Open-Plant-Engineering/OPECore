@@ -6,8 +6,8 @@ package session;
 
 service SessionService {
   rpc StartSession (StartSessionRequest) returns (StartSessionResponse);
-  rpc CloseSession (CloseSessionRequest) returns (EmptyResponse);
-  rpc AbortSession (AbortSessionRequest) returns (EmptyResponse);
+  rpc CloseSession (CloseSessionRequest) returns (SessionActionResponse);
+  rpc AbortSession (AbortSessionRequest) returns (SessionActionResponse);
 }
 
 message StartSessionRequest {
@@ -27,4 +27,8 @@ message AbortSessionRequest {
   string reason = 2;
 }
 
-message EmptyResponse {}
+message SessionActionResponse {
+  bool success = 1;
+  string message = 2;
+  string errorCode = 3;
+}

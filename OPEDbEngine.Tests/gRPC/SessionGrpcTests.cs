@@ -29,6 +29,8 @@ public class SessionGrpcTests : GrpcTestBase
             });
 
         close.Should().NotBeNull();
+        close.Success.Should().BeTrue();
+        close.Message.Should().NotBeNullOrEmpty();
     }
 
     [Fact]
@@ -43,11 +45,14 @@ public class SessionGrpcTests : GrpcTestBase
                 UserId = "atul"
             });
 
-        await client.AbortSessionAsync(
+        var abort = await client.AbortSessionAsync(
             new SessionGrpc.AbortSessionRequest
             {
                 SessionId = start.SessionId,
                 Reason = "test-abort"
             });
+
+        abort.Success.Should().BeTrue();
+        abort.Message.Should().NotBeNullOrEmpty();
     }
 }
