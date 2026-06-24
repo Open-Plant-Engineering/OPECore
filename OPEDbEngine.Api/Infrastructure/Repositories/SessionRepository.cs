@@ -53,4 +53,16 @@ public class SessionRepository
             tx);
     }
 
+    public async Task<bool> SessionExists(
+        IDbConnection conn,
+        Guid sessionId,
+        IDbTransaction tx)
+    {
+        return await conn.ExecuteScalarAsync<bool>(
+            @"SELECT EXISTS (
+                SELECT 1 FROM sessions WHERE id = @Id
+            )",
+            new { Id = sessionId },
+            tx);
+    }
 }

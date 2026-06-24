@@ -32,27 +32,4 @@ public class SessionGrpcTests : GrpcTestBase
         close.Success.Should().BeTrue();
         close.Message.Should().NotBeNullOrEmpty();
     }
-
-    [Fact]
-    public async Task Should_Abort_Session()
-    {
-        var channel = CreateChannel();
-        var client = new SessionGrpc.SessionService.SessionServiceClient(channel);
-
-        var start = await client.StartSessionAsync(
-            new SessionGrpc.StartSessionRequest
-            {
-                UserId = "atul"
-            });
-
-        var abort = await client.AbortSessionAsync(
-            new SessionGrpc.AbortSessionRequest
-            {
-                SessionId = start.SessionId,
-                Reason = "test-abort"
-            });
-
-        abort.Success.Should().BeTrue();
-        abort.Message.Should().NotBeNullOrEmpty();
-    }
 }

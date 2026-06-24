@@ -23,17 +23,36 @@ public class SessionGrpcService : SessionGrpc.SessionService.SessionServiceBase
         conn.Open();
         using var tx = conn.BeginTransaction();
 
-        var sessionId = await _service.StartSessionAsync(
-            request.UserId,
-            conn,
-            tx);
-
-        tx.Commit();
-
-        return new SessionGrpc.StartSessionResponse
+        try
         {
-            SessionId = sessionId.ToString()
-        };
+
+            var sessionId = await _service.StartSessionAsync(
+                request.UserId,
+                conn,
+                tx);
+
+            tx.Commit();
+
+            return new SessionGrpc.StartSessionResponse
+            {
+                Success = true,
+                SessionId = sessionId.ToString(),
+                Message = "Session created successfully"
+            };
+
+        }
+        catch (Exception ex)
+        {
+            tx.Rollback();
+
+            return new SessionGrpc.StartSessionResponse
+            {
+                Success = false,
+                SessionId = "",
+                Message = ex.Message,
+                ErrorCode = "SESSION_START_FAILED"
+            };
+        }
     }
 
     public override async Task<SessionGrpc.SessionActionResponse> CloseSession(
@@ -57,42 +76,6 @@ public class SessionGrpcService : SessionGrpc.SessionService.SessionServiceBase
             {
                 Success = true,
                 Message = "Session closed successfully"
-            };
-        }
-        catch (Exception ex)
-        {
-            tx.Rollback();
-
-            return new SessionGrpc.SessionActionResponse
-            {
-                Success = false,
-                Message = ex.Message
-            };
-        }
-    }
-
-    public override async Task<SessionGrpc.SessionActionResponse> AbortSession(
-        SessionGrpc.AbortSessionRequest request,
-        ServerCallContext context)
-    {
-        using var conn = _db.Create();
-        conn.Open();
-        using var tx = conn.BeginTransaction();
-
-        try
-        {
-            await _service.AbortSessionAsync(
-                Guid.Parse(request.SessionId),
-                request.Reason,
-                conn,
-                tx);
-
-            tx.Commit();
-
-            return new SessionGrpc.SessionActionResponse
-            {
-                Success = true,
-                Message = "Session aborted successfully"
             };
         }
         catch (Exception ex)

@@ -35,16 +35,10 @@ public class SessionService : ISessionService
         IDbConnection conn,
         IDbTransaction tx)
     {
-        await _repo.DeleteSession(conn, sessionId, tx);
-    }
+        var exists = await _repo.SessionExists(conn, sessionId, tx);
 
-    public async Task AbortSessionAsync(
-        Guid sessionId,
-        string reason,
-        IDbConnection conn,
-        IDbTransaction tx)
-    {
-        // optional: add audit log later
+        if (!exists)
+            throw new InvalidOperationException("Session does not exist.");
 
         await _repo.DeleteSession(conn, sessionId, tx);
     }
